@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Local machine private configuration (untracked)
+.offloadpro.local.json
+
+# Logs & generated reports
+*.log
+*.mhl
+*_Offload_Certificate.html
+*_ContactSheet.html
+*_integrity_report.txt
+*_deep_decode_report.txt
+mac_metadata_findings.txt
+
+# OS & Editor files
+.DS_Store
+._*
+Thumbs.db
+.vscode/
+.idea/
+.env

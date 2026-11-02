@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OffloadPro DIT Studio v2.0 — Multi-Stakeholder Ingest & 3-Level Audit</title>
+  <style>
+    :root {
+      --bg-0: #070b12;
+      --bg-1: #0d1422;
+      --bg-2: #131d31;
+      --bg-3: #1c2942;
+      --border: #243453;
+      --text-0: #f8fafc;
+      --text-1: #cbd5e1;
+      --text-2: #64748b;
+      --accent: #38bdf8;
+      --green: #10b981;
+      --green-bg: rgba(16, 185, 129, 0.14);
+      --amber: #f59e0b;
+      --amber-bg: rgba(245, 158, 11, 0.14);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+      background: radial-gradient(circle at top right, #111c35 0%, var(--bg-0) 60%);
+      color: var(--text-0);
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 28px;
+      background: rgba(13, 20, 34, 0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo-badge {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 18px;
+      color: #fff;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0.02em;
+    }
+    .brand span {
+      font-size: 12px;
+      color: var(--text-2);
+      display: block;
+    }
+    .traffic-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 18px;
+      border-radius: 999px;
+      background: var(--amber-bg);
+      border: 1.5px solid var(--amber);
+      color: #fbbf24;
+      font-weight: 700;
+      font-size: 12.5px;
+      letter-spacing: 0.03em;
+    }
+
+    .container {
+      max-width: 1560px;
+      margin: 0 auto;
+      padding: 24px 28px 60px;
+      display: grid;
+      grid-template-columns: 390px 450px 1fr;
+      gap: 22px;
+    }
+    @media (max-width: 1300px) {
+      .container { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+    .panel-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 0 0 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-1);
+    }
+
+    .drive-card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 14px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .drive-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent), 0 8px 20px rgba(0,0,0,0.3);
+    }
+    .drive-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .drive-letter {
+      font-weight: 800;
+      font-size: 16px;
+      color: var(--accent);
+    }
+    .tag {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      background: var(--bg-3);
+      color: var(--text-1);
+    }
+    .tag.removable { background: rgba(56, 189, 248, 0.16); color: #38bdf8; }
+    .tag.forensic { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; }
+    .tag.healthy { background: rgba(16, 185, 129, 0.16); color: #34d399; }
+    .progress-bar {
+      height: 7px;
+      background: #090e17;
+      border-radius: 99px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0284c7, #38bdf8);
+      border-radius: 99px;
+      transition: width 0.3s ease;
+    }
+    .drive-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-2);
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-1);
+      margin-bottom: 6px;
+      margin-top: 14px;
+    }
+    input[type="text"], select {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg-0);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-0);
+      font-size: 13px;
+      font-family: 'Consolas', monospace;
+    }
+    input[type="text"]:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .check-group {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 10px;
+    }
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .check-item input { margin-top: 3px; }
+    .check-item small {
+      display: block;
+      color: var(--text-2);
+      font-size: 11.5px;
+      margin-top: 2px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-primary {
+      width: 100%;
+      padding: 13px;
+      margin-top: 16px;
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #fff;
+      font-size: 14px;
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+    }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-secondary {
+      background: var(--bg-2);
+      border-color: var(--border);
+      color: var(--text-0);
+    }
+    .btn-secondary:hover { border-color: var(--accent); }
+    .btn-danger {
+      background: var(--red-bg);
+      border-color: var(--red);
+      color: #fca5a5;
+    }
+
+    .job-card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .scorecard-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin: 14px 0;
+    }
+    .score-box {
+      background: var(--bg-0);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 11px;
+    }
+    .score-box .lbl {
+      font-size: 11px;
+      color: var(--text-2);
+      text-transform: uppercase;
+    }
+    .score-box .val {
+      font-size: 17px;
+      font-weight: 800;
+      margin-top: 4px;
+      color: var(--text-0);
+    }
+    .score-box .sub {
+      font-size: 11px;
+      color: #34d399;
+      margin-top: 3px;
+      font-weight: 600;
+    }
+
+    .console {
+      background: #05080e;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'Consolas', monospace;
+      font-size: 12px;
+      color: #94a3b8;
+      max-height: 210px;
+      overflow-y: auto;
+      line-height: 1.55;
+    }
+    .console div { margin-bottom: 3px; }
+    .console .ok { color: #34d399; }
+
+    .toolkit-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .ext-pill {
+      display: inline-block;
+      background: var(--bg-3);
+      padding: 4px 9px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      margin: 3px;
+      font-family: 'Consolas', monospace;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo-badge">OP</div>
+      <div>
+        <h1>OffloadPro DIT Studio v2.0</h1>
+        <span>Single-Read Multi-Destination Offload • 3-Level FFmpeg Stream Validator • S.M.A.R.T. & 3-2-1 Guard</span>
+      </div>
+    </div>
+    <div id="trafficBanner" class="traffic-banner">
+      <span>🟡 1-DRIVE COPY VERIFIED (KEEP CARD OR MIRROR FOR 3-2-1 BEFORE IN-CAMERA FORMAT)</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- COLUMN 1: HARDWARE VOLUME BAY & PRE-FLIGHT -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>1. Hardware Volume Bay & S.M.A.R.T.</span>
+        <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="loadDrives()">Refresh</button>
+      </div>
+      <div id="drivesList">Loading mounted volumes...</div>
+
+      <div class="panel-title" style="margin-top:22px;">
+        <span>Pre-Flight Source / Backup X-Ray v2.0</span>
+        <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="runPreflight()">Scan Path</button>
+      </div>
+      <input type="text" id="preflightPath" value="E:\Backups\Camera_Offload_001" />
+      <div id="preflightResult" style="margin-top:12px;font-size:12.5px;color:var(--text-1);"></div>
+    </div>
+
+    <!-- COLUMN 2: SHOTPUT PRO OFFLOAD BUILDER -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>2. ShotPut Pro Single-Read Offload Queue</span>
+      </div>
+
+      <label>Source Card / Directory</label>
+      <input type="text" id="srcInput" value="D:\" />
+
+      <label>Primary Destination Path (Copy #1)</label>
+      <input type="text" id="dst1Input" value="E:\Backups\Camera_Offload_001" />
+
+      <label>Secondary Simultaneous Destination (Copy #2 for 3-2-1 Rule)</label>
+      <input type="text" id="dst2Input" placeholder="e.g. F:\Backups\Camera_Mirror_001 (enables Green 3-2-1 Status)" />
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label>Checksum Algorithm</label>
+          <select id="algoSelect">
+            <option value="SHA256" selected>SHA-256 (Collision-Resistant Default)</option>
+            <option value="MD5">MD5 (Legacy Fast Checksum)</option>
+            <option value="SHA1">SHA-1</option>
+          </select>
+        </div>
+        <div>
+          <label>macOS Metadata Mode</label>
+          <select id="macModeSelect">
+            <option value="clean">Option 2: Clean (Skip ._* & Trash)</option>
+            <option value="forensic_split" selected>Forensic Split (._* to _forensics)</option>
+            <option value="raw">Option 1: True Raw 1:1</option>
+          </select>
+        </div>
+      </div>
+
+      <label>3-Level Verification & Hardware Rescue Profile</label>
+      <div class="check-group">
+        <label class="check-item" style="margin:0;">
+          <input type="checkbox" id="chkL1" checked />
+          <div>
+            <strong>Level 1: Inline Source Read + Destination Readback Hash</strong>
+            <small>Reads SD card only once while hashing in RAM & verifies written files bit-for-bit.</small>
+          </div>
+        </label>
+        <label class="check-item" style="margin:0;">
+          <input type="checkbox" id="chkL2" checked />
+          <div>
+            <strong>Level 2: FFprobe Container, moov Atom & Header Check</strong>
+            <small>Verifies every .MOV/.MP4/JPEG/Audio/PDF container & keyframe header is intact.</small>
+          </div>
+        </label>
+        <label class="check-item" style="margin:0;">
+          <input type="checkbox" id="chkL3" />
+          <div>
+            <strong>Level 3: FFmpeg Deep End-to-End Frame/Stream Decode</strong>
+            <small>Demuxes 100% of every media stream and decodes keyframes + audio to catch mid-file bitrot.</small>
+          </div>
+        </label>
+        <label class="check-item" style="margin:0;border-top:1px solid var(--border);padding-top:8px;margin-top:6px;">
+          <input type="checkbox" id="chkRescue" />
+          <div>
+            <strong style="color:#fbbf24;">🚑 Dying Card Rescue Mode (Smallest-First, 1-Thread)</strong>
+            <small>Sorts queue smallest-to-largest to rescue maximum files before NAND thermal/FTL lockup.</small>
+          </div>
+        </label>
+      </div>
+
+      <button class="btn btn-primary" onclick="startOffload()">
+        ▶ Start Single-Read Verified Offload
+      </button>
+
+      <!-- NETWORKING & CYBERSECURITY TELEMETRY VISUALIZER -->
+      <div class="check-group" style="margin-top:16px;font-size:11.5px;">
+        <div style="font-weight:700;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;">
+          🌐 Full-Duplex USB Topology & Sliding-Window Backpressure
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-0);padding:8px 10px;border-radius:7px;border:1px solid var(--border);font-family:'Consolas',monospace;font-size:11px;">
+          <span style="color:#38bdf8">[D:\ IN]</span>
+          <span>──4MB Window──►</span>
+          <span style="color:#a855f7">[RAM Hash]</span>
+          <span>──Drain Lock──►</span>
+          <span style="color:#34d399">[E:\ OUT]</span>
+        </div>
+        <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
+          <div style="background:var(--bg-0);padding:6px 8px;border-radius:6px;border:1px solid var(--border);">
+            🛡️ <b>CSRF / DNS Lock:</b> <span style="color:#34d399">Active (256-bit)</span>
+          </div>
+          <div style="background:var(--bg-0);padding:6px 8px;border-radius:6px;border:1px solid var(--border);">
+            🔗 <b>Symlink Guard:</b> <span style="color:#34d399">Active (/XJ)</span>
+          </div>
+          <div style="background:var(--bg-0);padding:6px 8px;border-radius:6px;border:1px solid var(--border);">
+            🎨 <b>Creative Sidecars:</b> <span style="color:#34d399">Protected (.AAE/.XMP)</span>
+          </div>
+          <div style="background:var(--bg-0);padding:6px 8px;border-radius:6px;border:1px solid var(--border);">
+            🤖 <b>AI RAG Gate:</b> <span style="color:#34d399">Stream Verified</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLUMN 3: LIVE 3-LEVEL AUDIT SCORECARD & FORENSIC TOOLKIT -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>3. Offload Jobs, 3-Level Audit Scorecard & Forensic Toolkit</span>
+      </div>
+
+      <div id="jobsContainer"></div>
+
+      <!-- POST-OFFLOAD TOOLKIT -->
+      <div class="job-card" style="border-color:#263554;">
+        <h3 style="margin:0 0 6px;font-size:15px;">Post-Transfer Forensic & Offline Contact Sheet Toolkit</h3>
+        <p style="margin:0 0 12px;font-size:12.5px;color:var(--text-2);">
+          Run directly against <code id="activeTargetLabel">E:\Backups\Camera_Offload_001</code> without re-copying from the SD card:
+        </p>
+        <div class="toolkit-bar">
+          <button class="btn btn-secondary" onclick="generateCertificate()">
+            📜 Generate ASC-MHL + Visual Contact Sheet Certificate
+          </button>
+          <button class="btn btn-secondary" onclick="extractForensics()">
+            🔍 Reverse-Engineer macOS ._* Metadata Strings
+          </button>
+          <button class="btn btn-secondary" onclick="cleanJunk(true)">
+            🧪 Dry-Run Count OS Junk (._* / .DS_Store)
+          </button>
+          <button class="btn btn-danger" onclick="cleanJunk(false)">
+            🗑️ Purge OS Junk (Protects .AAE / .XMP)
+          </button>
+        </div>
+        <div id="toolkitOutput" style="margin-top:14px;"></div>
+
+        <!-- 3-COLUMN DIT & OPSEC FORMAT ADVISOR -->
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:11.5px;">
+          <div style="background:rgba(16,185,129,0.08);padding:10px;border-radius:8px;border:1px solid rgba(16,185,129,0.4);">
+            <strong style="color:#34d399">📷 1. Camera Reuse (DIT Rule):</strong>
+            <div style="color:var(--text-2);margin-top:3px;">If putting card back in a camera/drone, <b>never</b> format in Windows. Format inside the <b>Camera Menu</b> to preserve AU alignment & folder trees.</div>
+          </div>
+          <div style="background:var(--bg-0);padding:10px;border-radius:8px;border:1px solid var(--border);">
+            <strong style="color:#38bdf8">⚡ 2. PC Thumb-Drive Reuse:</strong>
+            <div style="color:var(--text-2);margin-top:3px;">Resets exFAT bitmap in 2s (preserves flash lifespan; old blocks remain carvable):</div>
+            <code style="display:block;margin-top:5px;color:#cbd5e1;">format D: /FS:exFAT /Q</code>
+          </div>
+          <div style="background:var(--bg-0);padding:10px;border-radius:8px;border:1px solid var(--border);">
+            <strong style="color:#f59e0b">🔐 3. OPSEC Lending/Sale Wipe:</strong>
+            <div style="color:var(--text-2);margin-top:3px;">Overwrites 100% of logical sectors with zeros before selling or lending card:</div>
+            <code style="display:block;margin-top:5px;color:#cbd5e1;">format D: /FS:exFAT /P:1</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function escapeHtml(str) {
+      return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    async function apiPost(url, payload) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-OffloadPro-Token': window.__OFFLOADPRO_CSRF_TOKEN__ || ''
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      return data;
+    }
+
+    async function initConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const cfg = await res.json();
+        if (cfg.defaultSource) document.getElementById('srcInput').value = cfg.defaultSource;
+        if (cfg.defaultDestination) {
+          document.getElementById('dst1Input').value = cfg.defaultDestination;
+          document.getElementById('preflightPath').value = cfg.defaultDestination;
+          document.getElementById('activeTargetLabel').textContent = cfg.defaultDestination;
+        }
+      } catch (_) {}
+      await loadDrives();
+      await runPreflight();
+    }
+
+    async function loadDrives() {
+      const el = document.getElementById('drivesList');
+      try {
+        const res = await fetch('/api/drives');
+        const data = await res.json();
+        if (!data.drives || !data.drives.length) {
+          el.innerHTML = 'No drives returned.';
+          return;
+        }
+        el.innerHTML = data.drives.map(d => {
+          const usedGB = (d.usedBytes / 1e9).toFixed(1);
+          const totalGB = (d.sizeBytes / 1e9).toFixed(1);
+          const freeGB = (d.freeBytes / 1e9).toFixed(1);
+          const pct = d.sizeBytes > 0 ? Math.min(100, Math.round((d.usedBytes / d.sizeBytes) * 100)) : 0;
+          const clusterKB = d.allocationUnitBytes ? (d.allocationUnitBytes / 1024) + ' KB blocks' : '';
+          const lockBadge = d.driveType === 'Removable'
+            ? (d.isReadOnly
+                ? '<span class="tag healthy">🔒 HW Write-Protect Lock ON</span>'
+                : '<span class="tag" style="color:#fbbf24;">🔓 Unlocked (Flip SD Lock Tab for Read-Only)</span>')
+            : '';
+          return `
+            <div class="drive-card" onclick="selectDrive('${escapeHtml(d.root.replace(/\\/g, '\\\\'))}', '${escapeHtml(d.driveType)}')">
+              <div class="drive-top">
+                <div>
+                  <span class="drive-letter">${escapeHtml(d.root)}</span>
+                  <strong style="margin-left:6px;font-size:13.5px;">${escapeHtml(d.label)}</strong>
+                  <span style="font-size:11px;color:var(--text-2);margin-left:4px;">SN:${escapeHtml(d.serialNumber)}</span>
+                </div>
+                <div style="display:flex;gap:5px;">
+                  <span class="tag healthy">SMART: ${escapeHtml(d.smartHealth || 'Healthy')}</span>
+                  <span class="tag ${d.driveType === 'Removable' ? 'removable' : ''}">${escapeHtml(d.mediaType || d.driveType)}</span>
+                </div>
+              </div>
+              <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+              <div class="drive-meta">
+                <span>Used: <strong>${usedGB} GB</strong> / ${totalGB} GB (${escapeHtml(d.fileSystem)} ${clusterKB ? '• ' + escapeHtml(clusterKB) : ''})</span>
+                <span>Free: <strong>${freeGB} GB</strong></span>
+              </div>
+              <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+                ${lockBadge}
+                ${d.hasSpotlight ? '<span class="tag forensic">🔍 .Spotlight-V100</span>' : ''}
+                ${d.hasTrashes ? '<span class="tag forensic">🗑️ .Trashes</span>' : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        el.innerHTML = `<span style="color:var(--red)">Error loading drives: ${escapeHtml(e.message)}</span>`;
+      }
+    }
+
+    function selectDrive(root, driveType) {
+      document.getElementById('preflightPath').value = root;
+      if (driveType === 'Removable') {
+        document.getElementById('srcInput').value = root;
+      }
+      runPreflight();
+    }
+
+    async function runPreflight() {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      document.getElementById('activeTargetLabel').textContent = targetPath;
+      const out = document.getElementById('preflightResult');
+      out.innerHTML = 'Scanning directory tree, sidecar taxonomy, ECDF quantiles & Merkle seal...';
+      try {
+        const s = await apiPost('/api/preflight', { targetPath });
+        if (!s.exists) {
+          out.innerHTML = `<span style="color:var(--amber)">Path does not exist yet: ${escapeHtml(targetPath)}</span>`;
+          return;
+        }
+        const realGB = (s.realFilesBytes / (1024 ** 3)).toFixed(3);
+        const slackMB = (s.estimatedExfatSlackBytes / (1024 ** 2)).toFixed(1);
+        const forensicMB = (s.systemForensicBytes / (1024 ** 2)).toFixed(2);
+        const dupMB = ((s.sameSizeDuplicateBytes || 0) / (1024 ** 2)).toFixed(1);
+        const extPills = Object.entries(s.extensions)
+          .sort((a, b) => b[1].count - a[1].count)
+          .map(([ext, info]) => `<span class="ext-pill">${escapeHtml(ext)}: <b>${info.count}</b></span>`)
+          .join('');
+
+        const ts = s.thinkStats;
+        const tsHtml = ts ? `
+          <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;">
+            <div style="font-size:11px;font-weight:700;color:#38bdf8;text-transform:uppercase;margin-bottom:6px;">
+              📊 ThinkStats2 ECDF Quantiles & Pareto Skew (Mean = ${ts.meanToMedianRatio}× Median)
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center;font-size:11px;background:var(--bg-0);padding:7px;border-radius:7px;border:1px solid var(--border);">
+              <div><div style="color:var(--text-2)">P50 Med</div><strong>${ts.medianMB}M</strong></div>
+              <div><div style="color:var(--text-2)">Mean μ</div><strong style="color:#fbbf24">${ts.meanMB}M</strong></div>
+              <div><div style="color:var(--text-2)">P90</div><strong>${ts.p90MB}M</strong></div>
+              <div><div style="color:var(--text-2)">P99</div><strong>${ts.p99MB}M</strong></div>
+              <div><div style="color:var(--text-2)">Max</div><strong style="color:#f43f5e">${ts.maxMB}M</strong></div>
+            </div>
+            <div style="font-size:11px;color:var(--text-2);margin:6px 0;">
+              Pareto Concentration: Top 10% largest files hold <strong style="color:#34d399">${ts.top10PctByteShare}%</strong> of total bytes.
+            </div>
+            <div style="margin-top:6px;">
+              <div style="font-size:10.5px;color:var(--text-2);margin-bottom:4px;">Inspection Paradox: <span style="color:#38bdf8">■ % of Files</span> vs. <span style="color:#10b981">■ % of GB Volume</span></div>
+              ${ts.buckets.map(b => `
+                <div style="margin-bottom:5px;font-size:11px;">
+                  <div style="display:flex;justify-content:space-between;">
+                    <span>${escapeHtml(b.label)} (${b.count})</span>
+                    <span>Files: <b style="color:#38bdf8">${b.filePct}%</b> | Vol: <b style="color:#10b981">${b.bytePct}%</b></span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px;">
+                    <div style="background:#090e17;height:5px;border-radius:4px;overflow:hidden;"><div style="width:${b.filePct}%;height:100%;background:#38bdf8;"></div></div>
+                    <div style="background:#090e17;height:5px;border-radius:4px;overflow:hidden;"><div style="width:${b.bytePct}%;height:100%;background:#10b981;"></div></div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div style="margin-top:8px;background:var(--bg-0);padding:7px;border-radius:7px;border:1px solid var(--border);font-size:11px;">
+              <div style="color:var(--text-2);font-weight:700;margin-bottom:3px;">⏱️ Bivariate ETA Model T(N, B) = α·N + β·B:</div>
+              Copy: <b>~${Math.ceil(ts.bivariateEtaSec.copySec / 60)}m</b> •
+              L1 Hash: <b>~${Math.ceil(ts.bivariateEtaSec.level1HashSec / 60)}m</b> •
+              L2 FFprobe: <b>~${ts.bivariateEtaSec.level2FfprobeSec}s</b> •
+              L3 Decode: <b>~${Math.ceil(ts.bivariateEtaSec.level3DeepDecodeSec / 60)}m</b>
+            </div>
+          </div>
+        ` : '';
+
+        const merkleHtml = s.merkleStructureRoot ? `
+          <div style="margin-top:8px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.35);padding:7px;border-radius:7px;font-size:10.5px;">
+            <div style="color:#34d399;font-weight:700;">🔒 SHA-256 Tree Structure Merkle Root:</div>
+            <code style="word-break:break-all;color:#cbd5e1;">${escapeHtml(s.merkleStructureRoot)}</code>
+          </div>
+        ` : '';
+
+        out.innerHTML = `
+          <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+              <span>Real Media/User Files:</span>
+              <strong style="color:#38bdf8">${s.realFilesCount.toLocaleString()} files (${realGB} GB)</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+              <span>Protected Creative Sidecars (<code>.AAE/.XMP</code>):</span>
+              <strong style="color:#34d399">${s.creativeSidecarsCount || 0} files • ${s.livePhotoPairsCount || 0} Live Photo pairs</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+              <span>Same-Size Intra-Archive Duplicates:</span>
+              <strong style="color:#fbbf24">${s.sameSizeDuplicateCount || 0} files (~${dupMB} MB)</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+              <span>Prior <code>.mhl</code> Ledger Matches:</span>
+              <strong>${s.priorMhlMatchedCount || 0} files</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+              <span>macOS <code>._*</code> 4KB Sidecars:</span>
+              <strong style="color:#d8b4fe">${s.macAppleDoubleCount.toLocaleString()} files (${(s.macAppleDoubleBytes / 1048576).toFixed(2)} MB)</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+              <span>System / Forensic (<code>.Spotlight-V100</code>):</span>
+              <strong>${s.systemForensicFilesCount} files (${forensicMB} MB)</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+              <span>exFAT 128KB Cluster Slack Overhead:</span>
+              <strong style="color:var(--amber)">~${slackMB} MB wasted on exFAT</strong>
+            </div>
+            <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:6px;">
+              ${extPills}
+            </div>
+            ${tsHtml}
+            ${merkleHtml}
+          </div>
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:var(--red)">Scan error: ${escapeHtml(e.message)}</span>`;
+      }
+    }
+
+    function updateTopTrafficLight(job) {
+      if (!job) return;
+      const banner = document.getElementById('trafficBanner');
+      if (job.trafficLight === 'GREEN_321_VERIFIED') {
+        banner.style.background = 'var(--green-bg)';
+        banner.style.borderColor = 'var(--green)';
+        banner.style.color = '#34d399';
+        banner.innerHTML = '<span>🟢 3-2-1 MULTI-DRIVE VERIFIED (2+ COPIES) — SAFE TO FORMAT IN-CAMERA</span>';
+      } else if (job.trafficLight === 'AMBER_SINGLE_COPY' || job.safeToFormat) {
+        banner.style.background = 'var(--amber-bg)';
+        banner.style.borderColor = 'var(--amber)';
+        banner.style.color = '#fbbf24';
+        banner.innerHTML = '<span>🟡 VERIFIED 100% ON 1 DRIVE (SINGLE COPY — MIRROR TO 2ND DRIVE OR FORMAT IN-CAMERA WHEN READY)</span>';
+      } else {
+        banner.style.background = 'var(--red-bg)';
+        banner.style.borderColor = 'var(--red)';
+        banner.style.color = '#fca5a5';
+        banner.innerHTML = `<span>🔴 ${escapeHtml(job.status)} — DO NOT FORMAT CARD</span>`;
+      }
+    }
+
+    function renderJobs(jobs) {
+      const container = document.getElementById('jobsContainer');
+      if (!jobs || !jobs.length) {
+        container.innerHTML = '<p style="color:var(--text-2)">No offload jobs yet.</p>';
+        return;
+      }
+      updateTopTrafficLight(jobs[0]);
+      container.innerHTML = jobs.map(j => {
+        const s = j.stats || {};
+        const gbCopied = ((s.bytesCopied || 0) / (1024 ** 3)).toFixed(2);
+        const gbTotal = ((s.totalBytes || 0) / (1024 ** 3)).toFixed(2);
+        const pct = s.totalBytes > 0 ? Math.min(100, Math.round((s.bytesCopied / s.totalBytes) * 100)) : 100;
+        const badgeText = j.trafficLight === 'GREEN_321_VERIFIED'
+          ? '🟢 3-2-1 VERIFIED (2+ DRIVES)'
+          : j.safeToFormat
+          ? '🟡 VERIFIED (1 DRIVE COPY)'
+          : j.status;
+        return `
+          <div class="job-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <h3 style="margin:0;font-size:16px;">${escapeHtml(j.name)}</h3>
+                <span style="font-size:12px;color:var(--text-2);">
+                  <code>${escapeHtml(j.source)}</code> → <code>${escapeHtml((j.destinations || []).join(', '))}</code>
+                </span>
+              </div>
+              <span class="tag" style="background:${j.safeToFormat ? 'var(--green-bg)' : 'var(--amber-bg)'};color:${j.safeToFormat ? '#34d399' : '#fbbf24'};border:1px solid ${j.safeToFormat ? 'var(--green)' : 'var(--amber)'};padding:6px 12px;font-size:12px;">
+                ${escapeHtml(badgeText)}
+              </span>
+            </div>
+
+            <div class="progress-bar" style="height:9px;margin:12px 0;">
+              <div class="progress-fill" style="width:${pct}%;background:linear-gradient(90deg, #10b981, #38bdf8);"></div>
+            </div>
+
+            <div class="scorecard-grid">
+              <div class="score-box">
+                <div class="lbl">1. Offload & Speed</div>
+                <div class="val">${s.copiedFiles || 0} / ${s.totalFiles || 0}</div>
+                <div class="sub">${gbCopied} / ${gbTotal} GB (${s.speedMBps || 0} MB/s)</div>
+              </div>
+              <div class="score-box">
+                <div class="lbl">2. Level 1 (${escapeHtml(j.algorithm)} Hash)</div>
+                <div class="val">${s.hashMismatchesL1 === 0 ? '100% Match' : s.hashMismatchesL1 + ' Errors'}</div>
+                <div class="sub">${s.hashMismatchesL1 === 0 ? '0 Bit-for-Bit Mismatches' : 'Check log'}</div>
+              </div>
+              <div class="score-box">
+                <div class="lbl">3. Level 2 (FFprobe)</div>
+                <div class="val">${s.filesCheckedL2 || 0} Checked</div>
+                <div class="sub">${s.corruptContainersL2 === 0 ? '0 Corrupt Containers' : s.corruptContainersL2 + ' Corrupt'}</div>
+              </div>
+              <div class="score-box">
+                <div class="lbl">4. Level 3 (FFmpeg Decode)</div>
+                <div class="val">${s.filesCheckedL3 || 0} Decoded</div>
+                <div class="sub">${s.corruptStreamsL3 === 0 ? '0 Corrupt Streams (Exit=0)' : s.corruptStreamsL3 + ' Corrupt'}</div>
+              </div>
+            </div>
+
+            <div class="console">
+              ${(j.logs || []).slice(-12).map(l => `<div class="${l.includes('0 ') || l.includes('VERIFIED') ? 'ok' : ''}">${escapeHtml(l)}</div>`).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function startOffload() {
+      const source = document.getElementById('srcInput').value.trim();
+      const d1 = document.getElementById('dst1Input').value.trim();
+      const d2 = document.getElementById('dst2Input').value.trim();
+      const destinations = [d1, d2].filter(Boolean);
+      const algorithm = document.getElementById('algoSelect').value;
+      const macMode = document.getElementById('macModeSelect').value;
+      const verifyLevel1 = document.getElementById('chkL1').checked;
+      const verifyLevel2 = document.getElementById('chkL2').checked;
+      const verifyLevel3 = document.getElementById('chkL3').checked;
+      const rescueMode = document.getElementById('chkRescue').checked;
+
+      await apiPost('/api/jobs/start', {
+        source,
+        destinations,
+        algorithm,
+        macMode,
+        rescueMode,
+        verifyLevel1,
+        verifyLevel2,
+        verifyLevel3
+      });
+    }
+
+    async function generateCertificate() {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      const out = document.getElementById('toolkitOutput');
+      out.innerHTML = '<div class="console">Generating ASC-MHL (.mhl) manifest and Offline Base64 Contact-Sheet HTML Certificate...</div>';
+      try {
+        const data = await apiPost('/api/certificate/generate', {
+          targetPath,
+          algorithm: document.getElementById('algoSelect').value
+        });
+        out.innerHTML = `
+          <div class="console">
+            <div class="ok">✓ Generated ASC-MHL Checksum Manifest: ${escapeHtml(data.mhlPath)}</div>
+            <div class="ok">✓ Generated Offline Visual Contact-Sheet Certificate (${data.embeddedThumbnailsCount || 0} inline video thumbnails): ${escapeHtml(data.certPath)}</div>
+            <div>Verified Media Files Indexed: ${data.totalFiles} (${(data.totalBytes / 1e9).toFixed(2)} GB)</div>
+          </div>
+        `;
+      } catch (e) {
+        out.innerHTML = `<div class="console" style="color:var(--red)">Error: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    async function extractForensics() {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      const out = document.getElementById('toolkitOutput');
+      out.innerHTML = '<div class="console">Scanning macOS ._* AppleDouble binary files for origin URLs, AirDrop sender names & extended attributes...</div>';
+      try {
+        const data = await apiPost('/api/forensics/extract', { targetPath });
+        const sampleHtml = (data.sample || []).slice(0, 10).map(item =>
+          `<div><strong style="color:#d8b4fe">${escapeHtml(item.parentFile)}</strong>: ${escapeHtml(item.strings.join(' | '))}</div>`
+        ).join('');
+        out.innerHTML = `
+          <div class="console">
+            <div class="ok">✓ Extracted metadata from ${data.count} AppleDouble (._*) files → Saved to ${escapeHtml(data.reportPath)}</div>
+            ${sampleHtml || '<div>No non-default strings found in sample.</div>'}
+          </div>
+        `;
+      } catch (e) {
+        out.innerHTML = `<div class="console" style="color:var(--red)">Error: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    async function cleanJunk(dryRun) {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      if (!dryRun && !confirm(`Delete OS junk (._*, .DS_Store, Thumbs.db) inside ${targetPath}? Creative sidecars (.AAE, .XMP) are protected.`)) return;
+      const out = document.getElementById('toolkitOutput');
+      out.innerHTML = `<div class="console">${dryRun ? 'Running dry-run scan...' : 'Deleting OS junk files...'}</div>`;
+      try {
+        const data = await apiPost('/api/forensics/clean', { targetPath, dryRun });
+        out.innerHTML = `
+          <div class="console">
+            <div class="ok">${dryRun ? '[DRY-RUN PREVIEW]' : '[CLEANUP COMPLETE]'} Matched ${data.deletedCount} OS junk files (${(data.reclaimedBytes / 1048576).toFixed(2)} MB on NTFS / ~${((data.deletedCount * 131072) / 1048576).toFixed(1)} MB on exFAT)</div>
+            ${(data.sample || []).slice(0, 8).map(f => `<div>• ${escapeHtml(f.path)} (${f.size} bytes)</div>`).join('')}
+          </div>
+        `;
+        if (!dryRun) runPreflight();
+      } catch (e) {
+        out.innerHTML = `<div class="console" style="color:var(--red)">Error: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    let currentJobs = [];
+    const evtSource = new EventSource('/api/events');
+    evtSource.addEventListener('init', (e) => {
+      currentJobs = JSON.parse(e.data) || [];
+      renderJobs(currentJobs);
+    });
+    evtSource.addEventListener('job_update', (e) => {
+      const updatedJob = JSON.parse(e.data);
+      const idx = currentJobs.findIndex((j) => j.id === updatedJob.id);
+      if (idx >= 0) {
+        currentJobs[idx] = updatedJob;
+      } else {
+        currentJobs.unshift(updatedJob);
+      }
+      renderJobs(currentJobs);
+    });
+    window.addEventListener('beforeunload', () => evtSource.close());
+
+    initConfig();
+  </script>
+</body>
+</html>
