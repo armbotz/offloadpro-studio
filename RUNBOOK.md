@@ -1,63 +1,165 @@
-# Operational Runbook & Knowledge Base: OffloadPro DIT Studio v3.1 (Lead DIT Edition)
+# Operational Runbook, Knowledge Base & FAQ: OffloadPro DIT Studio v4.1
 
 **Document ID:** KB-STORAGE-001  
-**Version:** 3.1.0  
-**Applies To:** Windows 10 / 11 (PowerShell 5.1+ / 7+), FFmpeg 8+, `exFAT` / `FAT32` Media Cards (Zero Node.js / Zero Server)
+**Version:** 4.1.0  
+**Applies To:** Windows 10 / 11 (Windows PowerShell 5.1 & PowerShell 7+), FFmpeg 8+, `exFAT` / `FAT32` / `NTFS` Media Volumes (100% Zero Node.js / Zero Server)
 
 ---
 
-## Part A: Offline Static HTML Studio Workflow (`public\index.html`)
+## Part 1: Step-by-Step Operational Runbook
 
-### Step 1: Open the Offline Studio UI
-1. Double-click [`Start-OffloadPro-Studio.bat`](./Start-OffloadPro-Studio.bat) or open [`public/index.html`](./public/index.html) directly in your browser (`file://`). No background server or localhost port is started.
-2. To refresh the mounted volume bay (`Get-Volume` + S.M.A.R.T. + Write-Protect Lock) and pre-flight snapshot from PowerShell, click **🔄 CLI Refresh Cmd** and run the copied command in your terminal:
+### Step 1: Launch the Offline Static HTML Studio (`file://`)
+1. Double-click [`Start-OffloadPro-Studio.bat`](./Start-OffloadPro-Studio.bat) or open [`public/index.html`](./public/index.html) directly in any browser (`file://`). No background process, daemon, or localhost port is started.
+2. **(Optional) Export Hardware Volume Telemetry to the Offline UI:**
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action ExportTelemetry -TargetPath "E:\Backups\Camera_Offload_001"
    ```
+   This queries Windows CIM/WMI (`Get-Volume`, `Get-Partition`, `Get-PhysicalDisk`, `Win32_LogicalDisk`) for hardware volume serial numbers, S.M.A.R.T. health, and SD write-protect tab status, writing aggregate metrics into [`public/offloadpro-telemetry.js`](./public/offloadpro-telemetry.js).
 
-### Step 2: Run Pre-Flight Source / Backup X-Ray
-1. Click **📂 Scan Folder in Browser** in Column 1 to select a local folder or drive directly in your browser (computes real file counts, 3-Tier Sidecar Taxonomy, Live Photo pairs, `exFAT` 128 KB cluster slack waste, ThinkStats2 ECDF quantiles, and WebCrypto SHA-256 Merkle Root 100% client-side), **or** run the standalone PowerShell pre-flight X-Ray:
-   ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action Preflight -TargetPath "E:\Backups\Camera_Offload_001"
-   ```
+---
 
-### Step 3: Configure & Run the Single-Read Verified Offload (With Cart Safety Gates)
-In **Column 2 (ShotPut Pro Single-Read Offload Queue)**:
-1. Configure **Source Card (`D:\`)**, **Primary Destination (`E:\Backups\Camera_Offload_001`)**, optional **Secondary Destination (`F:\Backups\Camera_Mirror_001`)**, **Checksum Algorithm (`SHA256` / `MD5`)**, **macOS Metadata Mode (`forensic_split` / `clean` / `raw`)**, and **Verification Levels 1–3**.
-2. Click **⚡ Generate & Copy Pure PowerShell Offload Command** and paste it into your standalone PowerShell terminal:
-   ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
-     -Action Offload `
-     -SourceRoot "D:\" `
-     -DestinationRoot "E:\Backups\Camera_Offload_001" `
-     -Algorithm SHA256 `
-     -MacMode forensic_split `
-     -VerifyLevel1 $true -VerifyLevel2 $true -VerifyLevel3 $false
-   ```
-   - **Pre-Flight Safety Gates:** Automatically verifies destination free space (`Payload + 5% NTFS headroom`) and checks for roll-name collisions before writing a single byte, then seals 100% of the roll into `<BackupName>.mhl` using the inline RAM hashes.
+### Step 2: Run Pre-Flight X-Ray & Camera OEM Recognizer
+Before copying a single byte, inspect the source card for **Camera Sequence Numbering Gaps** (e.g., `C0001`, `C0002`, `C0004` missing `C0003`), **Spanned-Clip Sub-Parts**, **Orphan Sidecars**, **Live Photo Pairs**, **Camera OEM Folder Signatures** (`Sony M4ROOT\CLIP`, `RED .R3D`, `Blackmagic .BRAW`, `Canon`, `DJI`, `Apple iOS`), and **`exFAT` 128 KB Cluster Slack Waste**:
+
+- **In Browser (Zero CLI):** Click **📂 Scan Folder in Browser** in Column 1 of [`public/index.html`](./public/index.html).
+- **In PowerShell CLI:**
+  ```powershell
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action Preflight -TargetPath "D:\"
+  ```
+
+---
+
+### Step 3: Execute Single-Read Multi-Destination Offload (With Crash-Resume & NLE Seals)
+Reads each 4 MB block from the SD card **only once** (`FileOptions.SequentialScan`), computes inline cryptographic hashes (`SHA256` / `MD5` / `SHA1`) in RAM, writes simultaneously to Copy #1 (`E:\`) and Copy #2 (`F:\`), flushes OS hardware buffers (`$os.Flush($true)` / Win32 `FlushFileBuffers`), verifies destination readback, and seals **four post-house deliverables** (`.mhl`, `.ale`, `.csv`, `.html`):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
+  -Action Offload `
+  -SourceRoot "D:\" `
+  -DestinationRoot "E:\Backups\Camera_Offload_001" `
+  -SecondaryDestinationRoot "F:\Backups\Camera_Mirror_001" `
+  -CameraId "CamA" -RollId "A001" `
+  -Algorithm SHA256 `
+  -MacMode forensic_split `
+  -VerifyLevel1 $true -VerifyLevel2 $true -VerifyLevel3 $false
+```
+- **Idempotent Crash-Resumable Checkpoint:** If a power outage or cable bump interrupts a transfer at 80%, re-run the exact same command. Intact files matching byte length and `LastWriteTimeUtc` are verified in place (`Resumed: N`) without re-reading them from the SD card.
+
+---
 
 ### Step 4: 5-Second "Safe to Pull Card" Parity Diff (`Source D:\` vs. `Backup E:\`)
-In **Column 2 (⚖️ 5-Second "Safe to Pull Card" Parity Diff)**:
-1. Click **📂 1. Pick Source (`D:\`)** and select your SD card root.
-2. Click **📂 2. Pick Backup (`E:\`)** and select your destination backup folder.
-3. Confirm the badge lights up **`✓ 100% TREE & BYTE PARITY MATCH — SAFE TO PULL CARD`** (`0 Missing on Backup`, `0 Size Mismatches`, identical `SHA-256` Merkle Roots) before pulling the card to format in-camera.
+In **Column 2** of [`public/index.html`](./public/index.html):
+1. Click **📂 1. Pick Source (`D:\`)** and select your SD card.
+2. Click **📂 2. Pick Backup (`E:\`)** and select your backup folder.
+3. Verify the banner turns green: **`🟢 100% SOURCE VS. BACKUP MERKLE PARITY MATCH — SAFE TO PULL CARD`**.
+   - Or run the CLI cross-archive Merkle comparator:
+     ```powershell
+     powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action CompareArchives -SourceRoot "D:\" -DestinationRoot "E:\Backups\Camera_Offload_001"
+     ```
 
-### Step 5: Full-Roll ASC-MHL Sealing, Bitrot Verification & Post-Transfer Forensics
-Use the buttons in **Column 3** to copy the standalone PowerShell commands or inspect `.mhl` files in your browser:
-1. **📜 Seal 100% Full-Roll ASC-MHL (`.mhl`) + Duration/Codec Certificate (Multi-Threaded):**
-   ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action Certificate -TargetPath "E:\Backups\Camera_Offload_001" -Algorithm SHA256 -Threads 6
-   ```
-2. **🛡️ Verify Existing `.MHL` Seal (Multi-Threaded Bitrot & Vault Scrub):**
+---
+
+### Step 5: Long-Term Vault Scrubbing (`VerifyMhl`) & Self-Healing Bitrot Repair (`HealFromMirror`)
+1. **Quarterly Cold-Storage Bitrot Scrub (`-Action VerifyMhl`):**
+   Re-hashes every file in your backup against its sealed `<BackupName>.mhl` XML manifest across 6 threads:
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action VerifyMhl -TargetPath "E:\Backups\Camera_Offload_001" -Threads 6
    ```
-3. **📄 Inspect `.MHL` XML Ledger in Browser:** Click to select any `.mhl` file and view sealed file counts, byte totals, algorithm, and Merkle seal client-side.
-4. **🔍 Extract macOS `._*` AppleDouble Forensic Strings & Clean Tier-2 OS Junk:**
+2. **Self-Healing Bitrot Repair from Mirror (`-Action HealFromMirror`):**
+   If `VerifyMhl` detects a corrupted or missing file on `E:\` (`ExitCode = 1`), repair it automatically from your secondary 3-2-1 mirror (`F:\`). The engine hashes the mirror copy first, proves mathematically that it matches the original `.mhl` seal, and atomically repairs the primary copy:
    ```powershell
-   # Dry-run preview
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-MacMetadataForensics.ps1 -TargetPath "E:\Backups\Camera_Offload_001"
-
-   # Delete Tier-2 OS junk (._*, .DS_Store, Thumbs.db) while protecting Tier-1 creative sidecars (.AAE/.XMP/.SRT)
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-MacMetadataForensics.ps1 -TargetPath "E:\Backups\Camera_Offload_001" -DeleteJunkAfterDump
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
+     -Action HealFromMirror `
+     -TargetPath "E:\Backups\Camera_Offload_001" `
+     -SourceRoot "F:\Backups\Camera_Mirror_001" `
+     -Threads 6
    ```
+
+---
+
+### Step 6: Non-Destructive Date Organization (`OrganizeByDate`) & Two-Stage Deduplication (`DedupeScan`)
+1. **Organize Messy Camera Dumps into `YYYY\YYYY-MM-DD` (Glues Live Photos & `.AAE`/`.XMP` Sidecars):**
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
+     -Action OrganizeByDate `
+     -SourceRoot "E:\Backups\Camera_Offload_001" `
+     -DestinationRoot "E:\Backups\Camera_Organized_By_Date"
+   ```
+   *(Add `-UseHardlinks` when organizing on the same NTFS drive to consume 0 extra bytes of disk space.)*
+2. **Two-Stage $O(1)$ Size + Multi-Threaded Hash Deduplication Scan (`-Action DedupeScan`):**
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
+     -Action DedupeScan `
+     -TargetPath "E:\Backups\Camera_Offload_001" `
+     -Algorithm SHA256 -Threads 6
+   ```
+
+---
+
+## Part 2: Architecture Knowledge Base (KB) — How All the Scripting Works
+
+### 1. [`scripts/Invoke-OffloadProEngine.ps1`](./scripts/Invoke-OffloadProEngine.ps1) (The Master Engine)
+This script is the core brain of OffloadPro. Every function inside it is written in pure 7-bit ASCII PowerShell so it runs identically on built-in Windows PowerShell 5.1 (`powershell.exe`) and PowerShell 7+ (`pwsh.exe`):
+
+| Function Name | What It Does Under the Hood |
+| :--- | :--- |
+| **`Set-ExecutionAwakeLock`** | P/Invokes Win32 `kernel32.dll!SetThreadExecutionState(ES_CONTINUOUS \| ES_SYSTEM_REQUIRED)` inside a `try/finally` block so Windows never enters S3/Modern Standby sleep during a multi-hour 4K/8K offload. |
+| **`Assert-SafeTargetPath`** | **Blast-Radius Guard:** Resolves the full canonical path (`[System.IO.Path]::GetFullPath`), blocks null/empty paths, and refuses to perform mutating writes directly on OS system roots (`C:\`, `C:\Windows`, `C:\Program Files`, `C:\Users`). |
+| **`Assert-DestinationSafetyGates`** | Enforces two on-set DIT cart gates before copying: (1) **5% Free-Space Headroom Gate** (checks `DriveInfo.AvailableFreeSpace` against payload + `max(64 MB, 5%)`), and (2) **Roll-Name Collision Guard** (blocks overwriting an existing folder if any relative path has a different byte size). |
+| **`Get-MountedVolumesTelemetry`** | Queries Windows CIM/WMI (`Get-Volume`, `Get-Partition`, `Get-PhysicalDisk`, `Win32_LogicalDisk`) to retrieve filesystem type (`exFAT`/`NTFS`), hardware Volume Serial Number, S.M.A.R.T. health, SD write-protect lock state, and macOS `.Spotlight-V100`/`.Trashes` footprints. |
+| **`Invoke-PreflightScan`** | Walks a card or archive in one pass: classifies files into the **3-Tier Sidecar Taxonomy**, detects **Camera OEMs** (Sony `M4ROOT\CLIP`, RED `.R3D`, Blackmagic `.BRAW`, Canon, DJI, Apple iOS), warns if Sony `MEDIAPRO.XML` is missing, detects **Sequence Numbering Gaps** (`C0001` -> `C0004`) and **Spanned Clips**, computes **ThinkStats2 ECDF quantiles (`P10`–`P99`)**, and hashes the sorted relative tree into a **SHA-256 Merkle Structure Root**. |
+| **`Copy-SingleReadMultiWrite`** | Opens the source file with `4 MB` buffers and `[System.IO.FileOptions]::SequentialScan` (instructing the Windows Cache Manager to double sequential read-ahead prefetching). As each 4 MB chunk is read into RAM, it feeds `.TransformBlock()` on the cryptographic hasher while writing to all destination `FileStream`s simultaneously, ending with `$os.Flush($true)` (Win32 `FlushFileBuffers`) so dirty OS RAM pages are physically committed to disk. |
+| **`New-MhlAndCertificate`** | Seals 100% of the roll across `$MaxThreads` runspaces into `<BackupName>.mhl` (ASC-MHL XML), generates `<BackupName>.ale` (Avid/DaVinci Resolve Log Exchange) and `<BackupName>_PostHouse_Manifest.csv`, and builds `<BackupName>_Offload_Certificate.html` with `ffprobe` codec/resolution/duration badges and Base64 contact-sheet thumbnails. |
+| **`Invoke-VerifyMhlLedger`** | Parses `<BackupName>.mhl` and verifies 100% of sealed files in parallel across `$MaxThreads` PowerShell runspaces, reporting `OK`, `MISSING`, `SIZE_MISMATCH`, or `HASH_MISMATCH` (`ExitCode = 1` on any bitrot). |
+| **`Invoke-HealFromMirror`** | **Self-Healing 3-2-1 Vault:** Scans the primary archive against its `.mhl` ledger; for any missing or bit-rotted file, it verifies the corresponding file on the mirror drive against the original `.mhl` cryptographic hash and atomically repairs the primary file. |
+| **`Invoke-OrganizeByDate`** | Non-destructively organizes files into `YYYY\YYYY-MM-DD` folders (via copy or instant NTFS hardlinks `-UseHardlinks`). Computes each clip group's canonical capture date from the primary photo/video first so `.AAE`/`.XMP` edits modified months later stay glued to their parent media's shoot date. |
+| **`Invoke-DedupeScan`** | **Two-Stage Scalability Funnel:** Stage 1 groups all files by exact byte length (`$f.Length`) in memory with zero disk read I/O, eliminating 95%+ of unique-size files immediately. Stage 2 hashes only same-size candidates across `$MaxThreads` runspaces to report true cryptographic duplicates and reclaimable megabytes. |
+
+---
+
+### 2. [`scripts/Invoke-3LevelAudit.ps1`](./scripts/Invoke-3LevelAudit.ps1) (Multi-Threaded 3-Level Media Auditor)
+Runs an independent, multi-threaded PowerShell RunspacePool (`1..$Threads`) audit comparing Source (`D:\`) and Destination (`E:\`):
+- **Level 1 (Cryptographic Checksum):** Computes full-file `MD5` hashes on both Source and Destination to prove zero transit bit-flips.
+- **Level 2 (`ffprobe` Container & `moov` Atom Check):** Inspects every `.MOV`/`.MP4` container header/trailer and decodes initial video keyframes (`-read_intervals "%+#3"`) plus JPEG/Audio/PDF headers.
+- **Level 3 (`ffmpeg` Deep End-to-End Stream Decode):** Demuxes 100% of every media file from start to finish and decodes video keyframes (`-skip_frame nokey`), all audio frames, and all photos into `-f null -` to catch mid-stream flash sector corruption that happened inside the camera *before* offload.
+
+---
+
+### 3. [`scripts/Invoke-MacMetadataForensics.ps1`](./scripts/Invoke-MacMetadataForensics.ps1) (macOS `._*` AppleDouble Forensic Extractor & Cleaner)
+- Parses `4,096-byte` macOS `._*` AppleDouble sidecar files (magic header `0x00051607`) created when an `exFAT` card is mounted on macOS (`com.apple.FinderInfo`, `com.apple.quarantine`, Spotlight strings).
+- Extracts human-readable ASCII strings for forensic inspection (`mac_metadata_findings.txt`) and, when `-DeleteJunkAfterDump` is passed, purges Tier-2 OS clutter (`._*`, `.DS_Store`, `Thumbs.db`, `desktop.ini`) while strictly protecting Tier-1 creative sidecars (`.AAE`, `.XMP`, `.SRT`, `.CUBE`).
+
+---
+
+### 4. [`scripts/Invoke-TDDTestSuite.ps1`](./scripts/Invoke-TDDTestSuite.ps1) (12-Invariant Red/Green TDD & Mutation Runner)
+- Creates an isolated synthetic camera card inside `%TEMP%\OffloadPro_TDD_<GUID>` (never touching your real drives), seeds synthetic PDFs, Live Photo pairs (`.JPG` + `.MOV`), later-edited `.AAE` sidecars, orphan `.XMP` sidecars, Sony `M4ROOT\CLIP` trees, and `._*` AppleDouble files, and verifies **12 invariants** (including flipping 1 bit of a sealed file to prove `VerifyMhl` catches it with `ExitCode == 1` and `HealFromMirror` heals it back to `7/7 Verified OK`) in ~3 seconds before deleting the temp directory in `finally`.
+
+---
+
+## Part 3: Frequently Asked Questions (FAQ)
+
+### Q1: Why is a checksum copy (Level 1) not enough on its own? Why do I need Levels 2 and 3?
+**A:** A cryptographic checksum (`SHA-256` or `MD5`) only proves that **Destination (`E:\`) equals Source (`D:\`)**. If your camera's battery died mid-recording or the SD card had a bad NAND block while shooting, the corrupt `.MOV` on `D:\` will copy to `E:\` with a **100% matching SHA-256 hash**!
+- **Level 1** proves the *copy* was bit-for-bit identical.
+- **Level 2 (`ffprobe`)** proves the *container and `moov` index table* are valid.
+- **Level 3 (`ffmpeg` decode)** proves the *actual video/audio streams* can be decoded end-to-end without bitstream errors.
+
+### Q2: Why does my SD card show thousands of `4 KB` `._*` files after plugging it into a Mac? Are they safe to delete?
+**A:** Because `exFAT` and `FAT32` do not support native macOS Extended Attributes (xattrs), macOS creates a hidden `4,096-byte` AppleDouble file (`._IMG_0001.MOV`) alongside every real file. Worse, on a `128 KB` `exFAT` allocation unit, each `4 KB` `._*` file consumes a full `128 KB` cluster (`124 KB` of slack waste per file).
+- **Tier-2 OS Clutter (`._*`, `.DS_Store`, `Thumbs.db`):** 100% safe to isolate (`-MacMode forensic_split`) or skip (`-MacMode clean`).
+- **Tier-1 Creative Sidecars (`.AAE`, `.XMP`, `.SRT`, `.CUBE`, `.XML`, `.BIM`, `.CPI`):** **NEVER delete these.** They contain your iOS non-destructive photo edits, Lightroom grades, DJI drone GPS telemetry, and Sony/Canon camera metadata. OffloadPro automatically protects Tier-1 sidecars in all modes.
+
+### Q3: Why does OffloadPro warn against formatting an SD card in Windows (`format D: /FS:exFAT /Q`) if the card is going back into a camera?
+**A:** High-bitrate cameras (Sony FX3/A7S III, RED, Blackmagic, Canon R5, DJI Mavic) expect specific **Allocation Unit (AU) cluster alignments**, CBR fat-table layouts, and OEM root folders (`PRIVATE\M4ROOT`, `DCIM`, `MISC`). Formatting in Windows writes generic PC cluster geometry, which can cause **dropped frames or buffer-overrun recording stops** on set.
+- **Going back into a camera/drone?** Always format using the **Camera's built-in Format Menu** (only *after* verifying 3-2-1 backups).
+- **Reusing as a PC thumb drive?** Use `format D: /FS:exFAT /Q` (2-second quick bitmap reset).
+- **Selling or lending the card to a stranger?** Use `format D: /FS:exFAT /P:1` (overwrites 100% of sectors with zeros so old photos/videos cannot be carved with PhotoRec/Recuva).
+
+### Q4: How does [`public/index.html`](./public/index.html) work offline (`file://`) without Node.js or a local web server?
+**A:** Modern browsers block `fetch()` requests on `file://` URLs due to CORS rules, which is why most tools force you to run a local Node/Python server. OffloadPro bypasses `file://` CORS cleanly using two native mechanisms:
+1. **Static `<script src="offloadpro-telemetry.js">` Data Bus:** `<script>` tags are exempt from `file://` CORS restrictions, allowing PowerShell (`-Action ExportTelemetry`) to publish hardware volume and preflight telemetry into `window.__OFFLOADPRO_TELEMETRY__`.
+2. **Browser-Native `<input type="file" webkitdirectory>` + WebCrypto API (`crypto.subtle.digest`):** Lets you select any local folder or `.mhl` XML file directly in the browser to compute ECDF statistics, 5-second Source vs. Backup parity diffs, and SHA-256 Merkle roots 100% client-side in RAM.
+
+### Q5: How do I import the `.ALE` file into DaVinci Resolve or Avid Media Composer?
+**A:** Every offload generates `<BackupName>.ale` alongside `<BackupName>.mhl`.
+- In **DaVinci Resolve**: Open the **Media Pool**, right-click your bin -> **Import** -> **Tracks / ALE...** (or **Import Media from ALE**) and select `<BackupName>.ale`. All clip names, byte sizes, `SHA256` checksums, and roll IDs (`Tape`) populate directly in your bin columns.
