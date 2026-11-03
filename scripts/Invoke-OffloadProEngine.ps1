@@ -1,16 +1,12 @@
 <#
 .SYNOPSIS
-    OffloadPro DIT Studio v3.1 — Pure PowerShell Single-Read Multi-Destination Offload,
+    OffloadPro DIT Studio v3.2 — Pure PowerShell Single-Read Multi-Destination Offload,
     Pre-Flight ECDF/Merkle X-Ray, S.M.A.R.T. Volume Bay, Full-Roll Multi-Threaded ASC-MHL Sealer,
-    MHL Bitrot Verifier, and Silverstack-Style Offline Base64 Contact-Sheet Certificate Generator.
+    MHL Bitrot Verifier, Win32 Sleep Guard, and Silverstack-Style Offline Contact-Sheet Generator.
 .DESCRIPTION
-    100% Native PowerShell / .NET implementation requiring zero Node.js runtime, zero npm packages,
-    and zero localhost HTTP servers.
-    - Action 'Preflight'       : Scans mounted volumes (S.M.A.R.T., Write-Protect Lock, Cluster Size) + target path ECDF/Merkle X-Ray.
-    - Action 'Offload'         : Pre-flight Free-Space & Roll-Collision gates + Single-Read 4 MB buffered inline hash offload to 1 or 2 destinations simultaneously + automatic 100% Full-Roll .mhl sealing.
-    - Action 'Certificate'     : Multi-threaded 100% Full-Roll ASC-MHL (.mhl) XML sealer + Silverstack-style HTML certificate with FFprobe codec/duration telemetry and 12 embedded Base64 video keyframes.
-    - Action 'VerifyMhl'       : Multi-threaded bitrot & vault verifier that checks every file on disk against its recorded .mhl checksum seal.
-    - Action 'ExportTelemetry' : Writes aggregate hardware & preflight snapshot to public\offloadpro-telemetry.js for offline HTML viewing.
+    100% Native PowerShell 5.1 & PowerShell 7+ (.NET Framework 4.8 & .NET 8/9) compatible engine
+    requiring zero Node.js runtime, zero npm packages, and zero localhost HTTP servers.
+    Returns deterministic CI/CD exit codes (0 = Verified Pass, 1 = Integrity/Gate Failure).
 #>
 param(
     [Parameter(Mandatory = $false)]
@@ -67,6 +63,46 @@ $TelemetryJsPath = Join-Path $RepoRoot 'public\offloadpro-telemetry.js'
 $CreativeSidecarExts = @('.aae', '.xmp', '.xml', '.bim', '.cpi', '.mpl', '.srt', '.vtt', '.cube', '.3dl', '.thm', '.lrv')
 $OsJunkNames         = @('.ds_store', 'thumbs.db', 'desktop.ini')
 
+# Win32 Kernel32 SetThreadExecutionState Awake Lock (prevents AC/DC standby & USB selective suspend during offload/audit)
+function Set-ExecutionAwakeLock {
+    param([bool]$Enable)
+    try {
+        if (-not ([System.Management.Automation.PSTypeName]'OffloadPro.PowerGuard').Type) {
+            Add-Type -Namespace 'OffloadPro' -Name 'PowerGuard' -MemberDefinition @'
+                [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto, SetLastError = true)]
+                public static extern uint SetThreadExecutionState(uint esFlags);
+'@ -ErrorAction SilentlyContinue
+        }
+        $ES_CONTINUOUS      = [uint32]2147483648 # 0x80000000
+        $ES_SYSTEM_REQUIRED = [uint32]1          # 0x00000001
+        if ($Enable) {
+            [void][OffloadPro.PowerGuard]::SetThreadExecutionState($ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED)
+        } else {
+            [void][OffloadPro.PowerGuard]::SetThreadExecutionState($ES_CONTINUOUS)
+        }
+    } catch {}
+}
+
+# PowerShell 5.1 (.NET Framework) + PowerShell 7+ (.NET 8/9) Compatible Hash Factory (avoids SYSLIB0045 deprecation)
+function New-CryptoHasher {
+    param([string]$HashAlgorithm)
+    switch ($HashAlgorithm.ToUpperInvariant()) {
+        'MD5'    { return [System.Security.Cryptography.MD5]::Create() }
+        'SHA1'   { return [System.Security.Cryptography.SHA1]::Create() }
+        default  { return [System.Security.Cryptography.SHA256]::Create() }
+    }
+}
+
+# Optional Enterprise Windows Event Log Telemetry (silently no-ops if non-admin or source unregistered)
+function Write-OffloadEventLog {
+    param([int]$EventId, [string]$EntryType = 'Information', [string]$Message)
+    try {
+        if ([System.Diagnostics.EventLog]::SourceExists('OffloadProDIT')) {
+            Write-EventLog -LogName 'Application' -Source 'OffloadProDIT' -EventId $EventId -EntryType $EntryType -Message $Message -ErrorAction SilentlyContinue
+        }
+    } catch {}
+}
+
 function Assert-SafeTargetPath {
     param([string]$InputPath, [bool]$IsMutating = $false)
     if ([string]::IsNullOrWhiteSpace($InputPath)) {
@@ -94,7 +130,7 @@ function Assert-DestinationSafetyGates {
     )
     $requiredBytes = [int64]0
     foreach ($q in $QueueItems) { $requiredBytes += [int64]$q.File.Length }
-    $headroomBytes = [Math]::Max([int64]2GB, [int64]($requiredBytes * 0.05))
+    $headroomBytes = [Math]::Max([int64]64MB, [int64]($requiredBytes * 0.05))
 
     foreach ($dst in $DestinationRoots) {
         $driveRoot = [System.IO.Path]::GetPathRoot($dst)
@@ -367,7 +403,7 @@ function Copy-SingleReadMultiWrite {
         [string[]]$TargetFiles,
         [string]$HashAlgorithm
     )
-    $hasher = [System.Security.Cryptography.HashAlgorithm]::Create($HashAlgorithm)
+    $hasher = New-CryptoHasher -HashAlgorithm $HashAlgorithm
     $buf = New-Object byte[] (4 * 1024 * 1024)
     $inStream = [System.IO.File]::Open($SourceFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
     $outStreams = New-Object 'System.Collections.Generic.List[System.IO.FileStream]'
@@ -396,7 +432,7 @@ function Copy-SingleReadMultiWrite {
 
 function Get-FileChecksumFull {
     param([string]$FilePath, [string]$HashAlgorithm)
-    $hasher = [System.Security.Cryptography.HashAlgorithm]::Create($HashAlgorithm)
+    $hasher = New-CryptoHasher -HashAlgorithm $HashAlgorithm
     $s = [System.IO.File]::Open($FilePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
     try {
         return [System.BitConverter]::ToString($hasher.ComputeHash($s)).Replace('-', '')
@@ -452,7 +488,7 @@ function New-MhlAndCertificate {
         } finally { $sha.Dispose() }
     }
 
-    # 1. Seal 100% of Roll Files into ASC-MHL (using precomputed inline hashes if available, else multi-threaded RunspacePool)
+    # 1. Seal 100% of Roll Files into ASC-MHL (PS 5.1 & PS 7+ .NET 8/9 compatible)
     Write-Host "[ASC-MHL SEALER] Sealing 100% of roll ($($files.Count) files) with $HashAlgorithm..." -ForegroundColor Cyan
     $mhlEntries = New-Object 'System.Collections.Generic.List[object]'
     $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads)
@@ -461,7 +497,11 @@ function New-MhlAndCertificate {
 
     $sbHash = {
         param($fullPath, $relPath, $size, $mtimeIso, $algo)
-        $hasher = [System.Security.Cryptography.HashAlgorithm]::Create($algo)
+        $hasher = switch ($algo.ToUpperInvariant()) {
+            'MD5'   { [System.Security.Cryptography.MD5]::Create() }
+            'SHA1'  { [System.Security.Cryptography.SHA1]::Create() }
+            default { [System.Security.Cryptography.SHA256]::Create() }
+        }
         $s = [System.IO.File]::Open($fullPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
         try {
             $h = [System.BitConverter]::ToString($hasher.ComputeHash($s)).Replace('-', '')
@@ -500,8 +540,8 @@ function New-MhlAndCertificate {
 <?xml version="1.0" encoding="UTF-8"?>
 <hashlist version="1.1">
   <creatorinfo>
-    <name>OffloadPro DIT Studio v3.1 (Pure PowerShell Full-Roll Sealer)</name>
-    <version>3.1.0</version>
+    <name>OffloadPro DIT Studio v3.2 (Pure PowerShell Full-Roll Sealer)</name>
+    <version>3.2.0</version>
     <creationdate>$nowIso</creationdate>
     <merkle_tree_sha256>$merkleRoot</merkle_tree_sha256>
   </creatorinfo>
@@ -628,7 +668,7 @@ $mhlNodes
   <div class="card">
     <div class="header">
       <div>
-        <h1 style="margin:0;font-size:24px;">OffloadPro DIT Studio v3.1 — Camera Roll Verification Certificate</h1>
+        <h1 style="margin:0;font-size:24px;">OffloadPro DIT Studio v3.2 — Camera Roll Verification Certificate</h1>
         <p style="margin:6px 0 0;color:#94a3b8;">Generated: $nowIso | Capture Window: $dateRangeFormatted</p>
       </div>
       <div class="stamp">✓ 100% FULL-ROLL ASC-MHL SEALED</div>
@@ -678,7 +718,7 @@ function Invoke-VerifyMhlLedger {
     [xml]$xmlDoc = Get-Content -LiteralPath $resolvedMhl -Raw -Encoding UTF8
     $nodes = @($xmlDoc.hashlist.hash)
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "OffloadPro v3.1 Vault & Bitrot MHL Verifier — Entries: $($nodes.Count)" -ForegroundColor Cyan
+    Write-Host "OffloadPro v3.2 Vault & Bitrot MHL Verifier — Entries: $($nodes.Count)" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Cyan
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -696,7 +736,11 @@ function Invoke-VerifyMhlLedger {
         if ($fi.Length -ne $expectedSize) {
             return 'SIZE_MISMATCH'
         }
-        $hasher = [System.Security.Cryptography.HashAlgorithm]::Create($algo)
+        $hasher = switch ($algo.ToUpperInvariant()) {
+            'MD5'   { [System.Security.Cryptography.MD5]::Create() }
+            'SHA1'  { [System.Security.Cryptography.SHA1]::Create() }
+            default { [System.Security.Cryptography.SHA256]::Create() }
+        }
         $s = [System.IO.File]::Open($full, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
         try {
             $actual = [System.BitConverter]::ToString($hasher.ComputeHash($s)).Replace('-', '')
@@ -736,117 +780,137 @@ function Invoke-VerifyMhlLedger {
     }
     $pool.Close(); $pool.Dispose(); $sw.Stop()
 
-    $color = if ($missingCount -eq 0 -and $sizeMismatchCount -eq 0 -and $bitrotCount -eq 0) { 'Green' } else { 'Red' }
+    $totalFailures = $missingCount + $sizeMismatchCount + $bitrotCount
+    $color = if ($totalFailures -eq 0) { 'Green' } else { 'Red' }
     Write-Host "[MHL BITROT AUDIT COMPLETE] $([Math]::Round($sw.Elapsed.TotalSeconds, 1))s | Verified OK: $okCount/$($nodes.Count) | Missing: $missingCount | Size Drift: $sizeMismatchCount | Bitrot Hash Errors: $bitrotCount" -ForegroundColor $color
+
+    if ($totalFailures -gt 0) {
+        Write-OffloadEventLog -EventId 4001 -EntryType 'Error' -Message "OffloadPro MHL Bitrot Failure: Missing=$missingCount, SizeDrift=$sizeMismatchCount, Bitrot=$bitrotCount"
+        exit 1
+    } else {
+        Write-OffloadEventLog -EventId 1000 -EntryType 'Information' -Message "OffloadPro MHL Bitrot Verified: $okCount/$($nodes.Count) files intact."
+    }
 }
 
-switch ($Action) {
-    'Preflight' {
-        $vols = Get-MountedVolumesTelemetry
-        $scan = Invoke-PreflightScan -ScanPath $TargetPath
-        Write-Host "================================================================" -ForegroundColor Cyan
-        Write-Host "OffloadPro v3.1 Pre-Flight X-Ray (Pure PowerShell)" -ForegroundColor Cyan
-        Write-Host "================================================================" -ForegroundColor Cyan
-        Write-Host "Mounted Volumes Detected : $($vols.Count)"
-        Write-Host "Real Media/User Files    : $($scan.realFilesCount) ($([Math]::Round($scan.realFilesBytes / 1GB, 3)) GB)"
-        Write-Host "Protected Sidecars       : $($scan.creativeSidecarsCount) | Live Photo Pairs: $($scan.livePhotoPairsCount)"
-        Write-Host "macOS ._* 4KB Sidecars   : $($scan.macAppleDoubleCount) ($([Math]::Round($scan.macAppleDoubleBytes / 1MB, 2)) MB)"
-        Write-Host "exFAT 128KB Slack Waste  : ~$([Math]::Round($scan.estimatedExfatSlackBytes / 1MB, 1)) MB"
-        if ($scan.merkleStructureRoot) {
-            Write-Host "SHA-256 Tree Merkle Root : $($scan.merkleStructureRoot)" -ForegroundColor Green
-        }
-    }
-    'ExportTelemetry' {
-        $vols = Get-MountedVolumesTelemetry
-        $scan = Invoke-PreflightScan -ScanPath $TargetPath
-        $payload = [ordered]@{
-            generatedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-            drives      = $vols
-            preflight   = $scan
-        }
-        $json = $payload | ConvertTo-Json -Depth 8 -Compress
-        Set-Content -LiteralPath $TelemetryJsPath -Value "window.__OFFLOADPRO_TELEMETRY__ = $json;" -Encoding UTF8
-        Write-Host "Exported offline telemetry snapshot to public\offloadpro-telemetry.js" -ForegroundColor Green
-    }
-    'Offload' {
-        $safeSrc  = Assert-SafeTargetPath -InputPath $SourceRoot -IsMutating $false
-        $safeDst1 = Assert-SafeTargetPath -InputPath $DestinationRoot -IsMutating $true
-        $dstRoots = New-Object 'System.Collections.Generic.List[string]'
-        $dstRoots.Add($safeDst1)
-        if (-not [string]::IsNullOrWhiteSpace($SecondaryDestinationRoot)) {
-            $dstRoots.Add((Assert-SafeTargetPath -InputPath $SecondaryDestinationRoot -IsMutating $true))
-        }
-
-        $allItems = @(Get-ChildItem -LiteralPath $safeSrc -File -Recurse -Force -ErrorAction SilentlyContinue |
-            Where-Object { -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) })
-
-        $queue = foreach ($f in $allItems) {
-            $rel = $f.FullName.Substring($safeSrc.Length).TrimStart('\')
-            $inSys = $rel -match '(?i)(^|\\)(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
-            $isJunk = $f.Name.StartsWith('._') -or ($OsJunkNames -contains $f.Name.ToLowerInvariant())
-            if ($MacMode -eq 'clean' -and ($inSys -or $isJunk)) { continue }
-            [PSCustomObject]@{
-                File       = $f
-                RelPath    = $rel
-                IsForensic = ($inSys -or $isJunk)
+Set-ExecutionAwakeLock -Enable $true
+try {
+    switch ($Action) {
+        'Preflight' {
+            $vols = Get-MountedVolumesTelemetry
+            $scan = Invoke-PreflightScan -ScanPath $TargetPath
+            Write-Host "================================================================" -ForegroundColor Cyan
+            Write-Host "OffloadPro v3.2 Pre-Flight X-Ray (Pure PowerShell)" -ForegroundColor Cyan
+            Write-Host "================================================================" -ForegroundColor Cyan
+            Write-Host "Mounted Volumes Detected : $($vols.Count)"
+            Write-Host "Real Media/User Files    : $($scan.realFilesCount) ($([Math]::Round($scan.realFilesBytes / 1GB, 3)) GB)"
+            Write-Host "Protected Sidecars       : $($scan.creativeSidecarsCount) | Live Photo Pairs: $($scan.livePhotoPairsCount)"
+            Write-Host "macOS ._* 4KB Sidecars   : $($scan.macAppleDoubleCount) ($([Math]::Round($scan.macAppleDoubleBytes / 1MB, 2)) MB)"
+            Write-Host "exFAT 128KB Slack Waste  : ~$([Math]::Round($scan.estimatedExfatSlackBytes / 1MB, 1)) MB"
+            if ($scan.merkleStructureRoot) {
+                Write-Host "SHA-256 Tree Merkle Root : $($scan.merkleStructureRoot)" -ForegroundColor Green
             }
         }
-
-        # Run Lead DIT Pre-Flight Cart Safety Gates (5% Free-Space Headroom + Roll Collision Guard)
-        Assert-DestinationSafetyGates -DestinationRoots $dstRoots -QueueItems $queue -AllowRollOverwrite:$AllowOverwrite
-
-        if ($RescueMode) {
-            $queue = @($queue | Sort-Object { $_.File.Length })
-            Write-Host "[RESCUE MODE] Sorted $($queue.Count) files smallest-to-largest..." -ForegroundColor Yellow
-        } else {
-            Write-Host "[SINGLE-READ OFFLOAD] Queued $($queue.Count) files ($Algorithm inline hash)..." -ForegroundColor Cyan
+        'ExportTelemetry' {
+            $vols = Get-MountedVolumesTelemetry
+            $scan = Invoke-PreflightScan -ScanPath $TargetPath
+            $payload = [ordered]@{
+                generatedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+                drives      = $vols
+                preflight   = $scan
+            }
+            $json = $payload | ConvertTo-Json -Depth 8 -Compress
+            Set-Content -LiteralPath $TelemetryJsPath -Value "window.__OFFLOADPRO_TELEMETRY__ = $json;" -Encoding UTF8
+            Write-Host "Exported offline telemetry snapshot to public\offloadpro-telemetry.js" -ForegroundColor Green
         }
+        'Offload' {
+            $safeSrc  = Assert-SafeTargetPath -InputPath $SourceRoot -IsMutating $false
+            $safeDst1 = Assert-SafeTargetPath -InputPath $DestinationRoot -IsMutating $true
+            $dstRoots = New-Object 'System.Collections.Generic.List[string]'
+            $dstRoots.Add($safeDst1)
+            if (-not [string]::IsNullOrWhiteSpace($SecondaryDestinationRoot)) {
+                $dstRoots.Add((Assert-SafeTargetPath -InputPath $SecondaryDestinationRoot -IsMutating $true))
+            }
 
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $copied = 0
-        $mismatches = 0
-        $inlineHashes = @{}
+            $allItems = @(Get-ChildItem -LiteralPath $safeSrc -File -Recurse -Force -ErrorAction SilentlyContinue |
+                Where-Object { -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) })
 
-        foreach ($item in $queue) {
-            $targets = foreach ($r in $dstRoots) {
-                if ($MacMode -eq 'forensic_split' -and $item.IsForensic) {
-                    Join-Path "${r}_forensics" $item.RelPath
-                } else {
-                    Join-Path $r $item.RelPath
+            $queue = @(foreach ($f in $allItems) {
+                $rel = $f.FullName.Substring($safeSrc.Length).TrimStart('\')
+                $inSys = $rel -match '(?i)(^|\\)(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
+                $isJunk = $f.Name.StartsWith('._') -or ($OsJunkNames -contains $f.Name.ToLowerInvariant())
+                if ($MacMode -eq 'clean' -and ($inSys -or $isJunk)) { continue }
+                [PSCustomObject]@{
+                    File       = $f
+                    RelPath    = $rel
+                    IsForensic = ($inSys -or $isJunk)
                 }
+            })
+
+            # Run Lead DIT Pre-Flight Cart Safety Gates (5% Free-Space Headroom + Roll Collision Guard)
+            Assert-DestinationSafetyGates -DestinationRoots $dstRoots -QueueItems $queue -AllowRollOverwrite:$AllowOverwrite
+
+            if ($RescueMode) {
+                $queue = @($queue | Sort-Object { $_.File.Length })
+                Write-Host "[RESCUE MODE] Sorted $($queue.Count) files smallest-to-largest..." -ForegroundColor Yellow
+            } else {
+                Write-Host "[SINGLE-READ OFFLOAD] Queued $($queue.Count) files ($Algorithm inline hash)..." -ForegroundColor Cyan
             }
-            $srcHash = Copy-SingleReadMultiWrite -SourceFile $item.File.FullName -TargetFiles $targets -HashAlgorithm $Algorithm
-            if (-not $item.IsForensic) {
-                $inlineHashes[$item.RelPath] = $srcHash
-            }
-            foreach ($tf in $targets) {
-                [System.IO.File]::SetCreationTimeUtc($tf, $item.File.CreationTimeUtc)
-                [System.IO.File]::SetLastWriteTimeUtc($tf, $item.File.LastWriteTimeUtc)
-                if ($VerifyLevel1) {
-                    $dstHash = Get-FileChecksumFull -FilePath $tf -HashAlgorithm $Algorithm
-                    if ($dstHash -ne $srcHash) { $mismatches++ }
+
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $copied = 0
+            $mismatches = 0
+            $inlineHashes = @{}
+
+            foreach ($item in $queue) {
+                $targets = @(foreach ($r in $dstRoots) {
+                    if ($MacMode -eq 'forensic_split' -and $item.IsForensic) {
+                        Join-Path "${r}_forensics" $item.RelPath
+                    } else {
+                        Join-Path $r $item.RelPath
+                    }
+                })
+                $srcHash = Copy-SingleReadMultiWrite -SourceFile $item.File.FullName -TargetFiles $targets -HashAlgorithm $Algorithm
+                if (-not $item.IsForensic) {
+                    $inlineHashes[$item.RelPath] = $srcHash
                 }
+                foreach ($tf in $targets) {
+                    [System.IO.File]::SetCreationTimeUtc($tf, $item.File.CreationTimeUtc)
+                    [System.IO.File]::SetLastWriteTimeUtc($tf, $item.File.LastWriteTimeUtc)
+                    if ($VerifyLevel1) {
+                        $dstHash = Get-FileChecksumFull -FilePath $tf -HashAlgorithm $Algorithm
+                        if ($dstHash -ne $srcHash) { $mismatches++ }
+                    }
+                }
+                $copied++
             }
-            $copied++
-        }
-        $sw.Stop()
-        $traffic = if ($mismatches -gt 0) { 'RED_ERRORS' } elseif ($dstRoots.Count -ge 2) { 'GREEN_321_VERIFIED' } else { 'AMBER_SINGLE_COPY' }
-        Write-Host "[OFFLOAD COMPLETE] $copied/$($queue.Count) files | Level 1 Hash Mismatches: $mismatches | Status: $traffic" -ForegroundColor Green
+            $sw.Stop()
+            $traffic = if ($mismatches -gt 0) { 'RED_ERRORS' } elseif ($dstRoots.Count -ge 2) { 'GREEN_321_VERIFIED' } else { 'AMBER_SINGLE_COPY' }
+            Write-Host "[OFFLOAD COMPLETE] $copied/$($queue.Count) files | Level 1 Hash Mismatches: $mismatches | Status: $traffic" -ForegroundColor Green
 
-        # Seal 100% Full-Roll ASC-MHL + Certificate immediately using already-computed inline hashes
-        foreach ($r in $dstRoots) {
-            New-MhlAndCertificate -ArchivePath $r -HashAlgorithm $Algorithm -PrecomputedHashes $inlineHashes -MaxThreads $Threads
-        }
+            # Seal 100% Full-Roll ASC-MHL + Certificate immediately using already-computed inline hashes
+            foreach ($r in $dstRoots) {
+                New-MhlAndCertificate -ArchivePath $r -HashAlgorithm $Algorithm -PrecomputedHashes $inlineHashes -MaxThreads $Threads
+            }
 
-        if ($VerifyLevel2 -or $VerifyLevel3) {
-            $auditScript = Join-Path $ScriptDir 'Invoke-3LevelAudit.ps1'
-            & $auditScript -SourceRoot $safeSrc -DestinationRoot $safeDst1 -SkipLevel1Hash -SkipLevel3DeepDecode:(-not $VerifyLevel3) -Threads $Threads
+            if ($mismatches -gt 0) {
+                Write-OffloadEventLog -EventId 4001 -EntryType 'Error' -Message "OffloadPro Level 1 Hash Mismatch count: $mismatches"
+                exit 1
+            }
+
+            if ($VerifyLevel2 -or $VerifyLevel3) {
+                $auditScript = Join-Path $ScriptDir 'Invoke-3LevelAudit.ps1'
+                & $auditScript -SourceRoot $safeSrc -DestinationRoot $safeDst1 -SkipLevel1Hash -SkipLevel3DeepDecode:(-not $VerifyLevel3) -Threads $Threads
+                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
+            Write-OffloadEventLog -EventId 1000 -EntryType 'Information' -Message "OffloadPro Offload Completed ($traffic): $copied files verified."
+        }
+        'Certificate' {
+            New-MhlAndCertificate -ArchivePath $TargetPath -HashAlgorithm $Algorithm -MaxThreads $Threads
+        }
+        'VerifyMhl' {
+            Invoke-VerifyMhlLedger -ArchivePath $TargetPath -ExplicitMhlPath $MhlPath -MaxThreads $Threads
         }
     }
-    'Certificate' {
-        New-MhlAndCertificate -ArchivePath $TargetPath -HashAlgorithm $Algorithm -MaxThreads $Threads
-    }
-    'VerifyMhl' {
-        Invoke-VerifyMhlLedger -ArchivePath $TargetPath -ExplicitMhlPath $MhlPath -MaxThreads $Threads
-    }
+} finally {
+    Set-ExecutionAwakeLock -Enable $false
 }

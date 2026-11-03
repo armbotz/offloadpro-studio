@@ -1,8 +1,8 @@
-# OffloadPro DIT Studio v3.1 (Lead DIT Edition)
+# OffloadPro DIT Studio v3.2 (Lead DIT & Enterprise DevSecOps Edition)
 
 **ShotPut Pro & Silverstack-Style Media Offload Engine, Multi-Destination Inline Checksum Verifier, 100% Full-Roll Multi-Threaded ASC-MHL Sealer & Bitrot Verifier, 3-Level FFmpeg Stream Validator, and macOS Forensic Toolkit.**
 
-OffloadPro DIT Studio v3.1 is a **100% Pure PowerShell + Standalone Offline Static HTML** application designed for bulletproof, one-shot archival offloads from large SD / CFexpress / USB media cards (`exFAT` / `FAT32`) to Windows storage volumes (`NTFS`) — requiring **zero Node.js runtime, zero npm packages, and zero localhost HTTP servers**.
+OffloadPro DIT Studio v3.2 is a **100% Pure PowerShell (5.1 & 7+) + Standalone Offline Static HTML** application designed for bulletproof, one-shot archival offloads from large SD / CFexpress / USB media cards (`exFAT` / `FAT32`) to Windows storage volumes (`NTFS`) and Azure Blob Vaults — requiring **zero Node.js runtime, zero npm packages, and zero localhost HTTP servers**.
 
 Unlike standard checksum-only offload tools that only verify whether a broken file on an SD card was copied identically, OffloadPro combines **3 distinct verification layers** with **100% Full-Roll ASC-MHL sealing**, **5-Second Source vs. Backup Merkle Parity Diff**, **macOS extended attribute (`._*` & `.Spotlight-V100`) forensics**, and **ThinkStats2 ECDF / SHA-256 Merkle telemetry**.
 
@@ -47,11 +47,14 @@ Unlike standard checksum-only offload tools that only verify whether a broken fi
 
 ```text
 offloadpro-studio/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                         # Windows CI/CD gate (Zero-Node check, AST linter & E2E bitrot test)
 ├── public/
 │   ├── index.html                         # Standalone offline static HTML Studio UI (file:// ready, zero server)
 │   └── offloadpro-telemetry.js            # Aggregate telemetry snapshot loaded offline by index.html
 ├── scripts/
-│   ├── Invoke-OffloadProEngine.ps1        # Master PowerShell engine (Preflight, Offload, Full-Roll MHL, VerifyMhl)
+│   ├── Invoke-OffloadProEngine.ps1        # Master PowerShell 5.1/7+ engine (Preflight, Offload, Full-Roll MHL, VerifyMhl)
 │   ├── Invoke-3LevelAudit.ps1             # Multi-threaded PowerShell 3-Level Audit CLI (MD5 + FFprobe + FFmpeg Decode)
 │   └── Invoke-MacMetadataForensics.ps1    # macOS ._* AppleDouble string extractor & Tier-2 OS junk cleaner
 ├── Start-OffloadPro-Studio.bat            # 1-Click offline HTML Studio launcher (zero server)
