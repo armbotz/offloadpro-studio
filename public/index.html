@@ -335,8 +335,8 @@
     <div class="brand">
       <div class="logo-badge">OP</div>
       <div>
-        <h1>OffloadPro DIT Studio v4.0 — Upper-Echelon On-Set & Scalability Edition</h1>
-        <span>SequentialScan + FlushFileBuffers • Crash-Resume Checkpoint • NLE .ALE & .CSV • Two-Stage O(1) Dedupe • 10-Test TDD • Zero Node.js</span>
+        <h1>OffloadPro DIT Studio v4.1 — Self-Healing Vault & OEM Telemetry Edition</h1>
+        <span>Self-Healing MHL Repair • Camera OEM Recognizer • SequentialScan + Flush • NLE .ALE & .CSV • 12-Test Typed TDD • Zero Node.js</span>
       </div>
     </div>
     <div id="trafficBanner" class="traffic-banner">
@@ -526,6 +526,9 @@
           <button class="btn btn-secondary" style="border-color:#10b981;color:#34d399;" onclick="verifyMhlLedger()">
             🛡️ Verify .MHL Seal (Multi-Threaded Bitrot Scrub)
           </button>
+          <button class="btn btn-secondary" style="border-color:#22c55e;color:#4ade80;" onclick="buildHealFromMirrorCmd()">
+            🩺 Self-Heal Bitrot from Mirror (-Action HealFromMirror)
+          </button>
           <button class="btn btn-secondary" style="border-color:#38bdf8;color:#38bdf8;" onclick="document.getElementById('mhlFileInput').click()">
             📄 Inspect .MHL XML Ledger in Browser
           </button>
@@ -539,7 +542,7 @@
             🗂️ Organize by Date (YYYY\YYYY-MM-DD • Glues .AAE & Live Photos)
           </button>
           <button class="btn btn-secondary" style="border-color:#10b981;color:#34d399;" onclick="buildTddSuiteCmd()">
-            🧪 Run 10-Test Local TDD Suite
+            🧪 Run 12-Test Local TDD Suite (-PassThru)
           </button>
           <button class="btn btn-secondary" onclick="extractForensics()">
             🔍 Reverse-Engineer macOS ._* Metadata Strings
@@ -1190,6 +1193,13 @@
       setCommandDock('🛡️ Multi-Threaded ASC-MHL Bitrot & Vault Verifier Command:', cmd, true);
     }
 
+    function buildHealFromMirrorCmd() {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      const mirrorPath = (document.getElementById('dst2Input')?.value || '').trim() || `${targetPath}_Mirror`;
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-OffloadProEngine.ps1 -Action HealFromMirror -TargetPath "${targetPath}" -SourceRoot "${mirrorPath}" -Threads 6`;
+      setCommandDock('🩺 Self-Healing 3-2-1 Vault Repair (Repairs corrupted/missing files on Primary from Mirror verified against .MHL seal):', cmd, true);
+    }
+
     function buildAzCopyCloudVaultCmd() {
       const targetPath = document.getElementById('preflightPath').value.trim();
       const cmd = `# 3-2-1 Off-Site Cloud Copy #3: Push verified roll + .mhl seal to Azure Blob Archive/Cool Tier with inline MD5 check\nazcopy copy "${targetPath}" "https://<STORAGE_ACCOUNT>.blob.core.windows.net/camera-vault?<SAS_TOKEN>" --recursive=true --put-md5 --block-blob-tier=Cool --exclude-pattern="._*;*.DS_Store;Thumbs.db"`;
@@ -1211,7 +1221,7 @@
 
     function buildTddSuiteCmd() {
       const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-TDDTestSuite.ps1`;
-      setCommandDock('🧪 Execute 10-Invariant Local TDD & Bit-Flip Mutation Test Suite:', cmd, true);
+      setCommandDock('🧪 Execute 12-Invariant Local TDD & Bit-Flip Mutation Test Suite (-PassThru Typed Objects):', cmd, true);
     }
 
     function extractForensics() {

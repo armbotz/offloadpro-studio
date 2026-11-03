@@ -1,21 +1,21 @@
-# OffloadPro DIT Studio v4.0
+# OffloadPro DIT Studio v4.1
 
-**Open-Source ShotPut Pro & Silverstack-Style Media Offload Engine, Multi-Destination Inline Checksum Verifier, Kernel-Optimized `SequentialScan` + `FlushFileBuffers` Streamer, Idempotent Crash-Resumable Checkpointing, 100% Full-Roll Multi-Threaded ASC-MHL Sealer & NLE (`.ALE`/`.CSV`) Exporter, Two-Stage O(1) Deduplication Engine, 3-Level FFmpeg Stream Validator, Sidecar-Glued Date Organizer, and macOS Forensic Toolkit.**
+**Open-Source ShotPut Pro & Silverstack-Style Media Offload Engine, Multi-Destination Inline Checksum Verifier, Kernel-Optimized `SequentialScan` + `FlushFileBuffers` Streamer, Idempotent Crash-Resumable Checkpointing, 100% Full-Roll Multi-Threaded ASC-MHL Sealer & NLE (`.ALE`/`.CSV`) Exporter, Self-Healing 3-2-1 Bitrot Repair (`-Action HealFromMirror`), Camera OEM Structure Recognizer, Two-Stage O(1) Deduplication Engine, 3-Level FFmpeg Stream Validator, Sidecar-Glued Date Organizer, and macOS Forensic Toolkit.**
 
 > **Mission & Positioning Statement:**  
 > **For** independent filmmakers, on-set Digital Imaging Technicians (DITs), hybrid camera/drone hobbyists, and `/r/DataHoarder` archivers **who** refuse to trust blind drag-and-drop copies with irreplaceable footage—or pay \$150–\$1,500/year for proprietary offload software—**OffloadPro DIT Studio** is a **100% open-source, zero-server, pure PowerShell (5.1 & 7+) + offline static HTML archival engine**.  
-> **Unlike** basic checksum tools that only verify whether a corrupted file on an SD card was copied identically—or Node/Electron apps that expose background servers and `npm` bloat—**OffloadPro v4.0** combines **Single-Read Multi-Destination Inline Hashing (`SHA-256`/`MD5`)**, **OS Kernel `SequentialScan` + Hardware `FlushFileBuffers`**, **Idempotent Crash-Resumable Offloads**, **100% Full-Roll ASC-MHL + Avid/Resolve `.ALE` & `.CSV` NLE Deliverables**, **Two-Stage O(1) Archive Deduplication**, **3-Level FFmpeg Stream & Keyframe Decoding**, **Sidecar-Glued Date Organization**, **macOS `._*` AppleDouble Forensics**, and **ThinkStats2 ECDF / SHA-256 Merkle Telemetry** in a zero-dependency native Windows toolkit.
+> **Unlike** basic checksum tools that only verify whether a corrupted file on an SD card was copied identically—or Node/Electron apps that expose background servers and `npm` bloat—**OffloadPro v4.1** combines **Single-Read Multi-Destination Inline Hashing (`SHA-256`/`MD5`)**, **OS Kernel `SequentialScan` + Hardware `FlushFileBuffers`**, **Idempotent Crash-Resumable Offloads**, **Self-Healing Bitrot Repair (`HealFromMirror`)**, **Camera-Vendor OEM Structure Recognition**, **100% Full-Roll ASC-MHL + Avid/Resolve `.ALE` & `.CSV` NLE Deliverables**, **Two-Stage O(1) Archive Deduplication**, **3-Level FFmpeg Stream & Keyframe Decoding**, **Sidecar-Glued Date Organization**, **macOS `._*` AppleDouble Forensics**, and **ThinkStats2 ECDF / SHA-256 Merkle Telemetry** in a zero-dependency native Windows toolkit.
 
 ---
 
 ## Built for 4 Core Open-Source Personas
 
-| Persona | Core Workflow in OffloadPro v4.0 |
+| Persona | Core Workflow in OffloadPro v4.1 |
 | :--- | :--- |
-| **🎬 On-Set DITs & Indie Filmmakers** | Single-read dual-destination inline hashing (`SHA-256`/`MD5`), **`-CameraId` / `-RollId` Tokenized Folder Naming**, **Idempotent Crash-Resumable Checkpointing**, **5% Free-Space & Roll-Collision Safety Gates**, **100% Full-Roll `.mhl` Sealing**, **Avid/DaVinci Resolve `.ALE` & Post-House `.CSV` Deliverables**, **Spanned-Clip & Sequence Gap Detection**, and printable Silverstack-style HTML Certificates with `ffprobe` codec/duration telemetry. |
+| **🎬 On-Set DITs & Indie Filmmakers** | Single-read dual-destination inline hashing (`SHA-256`/`MD5`), **Camera-Vendor OEM Auto-Detection & `MEDIAPRO.XML` Conform Guard**, **`-CameraId` / `-RollId` Tokenized Folder Naming**, **Idempotent Crash-Resumable Checkpointing**, **5% Free-Space & Roll-Collision Safety Gates**, **100% Full-Roll `.mhl` Sealing**, **Avid/DaVinci Resolve `.ALE` & Post-House `.CSV` Deliverables**, **Spanned-Clip & Sequence Gap Detection**, and printable Silverstack-style HTML Certificates. |
 | **📷 Camera Hobbyists & Drone Pilots** | Explains `exFAT` `128 KB` vs. `NTFS` `4 KB` block slack waste, protects Tier-1 creative sidecars (`.AAE` iOS edits, `.XMP` Lightroom metadata, `.SRT` DJI drone logs, `.CUBE` LUTs), and provides **`-Action OrganizeByDate`** (`YYYY\YYYY-MM-DD`) that keeps Live Photo pairs (`.HEIC`/`.JPG` + `.MOV`) and edited `.AAE`/`.XMP` sidecars glued to their parent capture date. |
-| **🗄️ `/r/DataHoarder` & Archival Data Nerds** | **Two-Stage O(1) Size + Runspace Cryptographic Deduplication (`-Action DedupeScan`)**, **ThinkStats2 ECDF Quantiles (`P10`–`P99`)**, Pareto Top-10% concentration, Bivariate ETA modeling, **`-Action VerifyMhl`** multi-threaded cold-storage bitrot scrubbing, **`-Action CompareArchives`** cross-drive Merkle parity analysis, and **AzCopy v10** 3-2-1 Azure Blob Archive commands. |
-| **🧪 DevSecOps, Enterprise IT & TDD Contributors** | **Zero Node.js / Zero Server** (`file://` static data bus), OS kernel `FileOptions.SequentialScan` + `$os.Flush($true)` (`FlushFileBuffers`), native Win32 `SetThreadExecutionState` sleep lock, Windows Event Log integration, deterministic CI exit codes (`0`/`1`), and a 3-second **10-Invariant Local TDD & Bit-Flip Mutation Suite ([`scripts/Invoke-TDDTestSuite.ps1`](./scripts/Invoke-TDDTestSuite.ps1))**. |
+| **🗄️ `/r/DataHoarder` & Archival Data Nerds** | **Self-Healing 3-2-1 Vault Repair (`-Action HealFromMirror`)**, **Two-Stage O(1) Size + Runspace Cryptographic Deduplication (`-Action DedupeScan`)**, **ThinkStats2 ECDF Quantiles (`P10`–`P99`)**, Pareto Top-10% concentration, Bivariate ETA modeling, **`-Action VerifyMhl`** multi-threaded cold-storage bitrot scrubbing, **`-Action CompareArchives`** cross-drive Merkle parity analysis, and **AzCopy v10** 3-2-1 Azure Blob Archive commands. |
+| **🧪 DevSecOps, Enterprise IT & TDD Contributors** | **Zero Node.js / Zero Server** (`file://` static data bus), **Strongly-Typed `-PassThru` `[PSCustomObject]` Pipeline Output**, OS kernel `FileOptions.SequentialScan` + `$os.Flush($true)` (`FlushFileBuffers`), native Win32 `SetThreadExecutionState` sleep lock, Windows Event Log integration, deterministic CI exit codes (`0`/`1`), and a 3-second **12-Invariant Local TDD & Bit-Flip Mutation Suite ([`scripts/Invoke-TDDTestSuite.ps1`](./scripts/Invoke-TDDTestSuite.ps1))**. |
 
 ---
 
@@ -80,9 +80,9 @@ offloadpro-studio/
 
 ---
 
-## Running the Local 10-Invariant TDD & Mutation Test Suite
+## Running the Local 12-Invariant TDD & Mutation Test Suite
 
-Verify all offload, sidecar taxonomy, full-roll `.mhl` sealing, 1-bit corruption detection, roll-collision blocking, sidecar-glued date organization, zero-PII `stdout`, crash-resumable checkpointing, two-stage `DedupeScan`, and NLE `.ALE`/`.CSV` post-house deliverables in 3 seconds:
+Verify all 12 invariants (camera OEM & sequence gap detection, 3-tier sidecar taxonomy, full-roll `.mhl` sealing, 1-bit corruption detection, self-healing mirror repair `HealFromMirror`, roll-collision blocking, sidecar-glued date organization, zero-PII `stdout`, crash-resumable checkpointing, two-stage `DedupeScan`, NLE `.ALE`/`.CSV` post-house deliverables, and Sony `MEDIAPRO.XML` conform guard) using strongly-typed `-PassThru` objects and zero regex in 3 seconds:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-TDDTestSuite.ps1

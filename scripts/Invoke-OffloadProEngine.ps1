@@ -1,17 +1,18 @@
 <#
 .SYNOPSIS
-    OffloadPro DIT Studio v4.0 - Upper-Echelon Pure PowerShell Media Offload Engine,
+    OffloadPro DIT Studio v4.1 - Upper-Echelon Pure PowerShell Media Offload Engine,
     Win32 SequentialScan/FlushFileBuffers I/O, Crash-Resumable Ingest, Full-Roll ASC-MHL + NLE (.ALE/.CSV) Sealer,
-    Two-Stage Size+Hash Deduplication Engine, Sidecar-Glued Date Organizer & 3-Level FFmpeg Validator.
+    Self-Healing Bitrot Repair (HealFromMirror), Camera OEM Recognizer, Two-Stage Deduplication & 3-Level FFmpeg Validator.
 .DESCRIPTION
     100% Native PowerShell 5.1 & PowerShell 7+ (.NET Framework 4.8 & .NET 8/9) compatible engine
     requiring zero Node.js runtime, zero npm packages, and zero localhost HTTP servers.
     Pure 7-bit ASCII source encoding for 100% deterministic parsing in Windows PowerShell 5.1 and PowerShell 7+.
+    Supports -PassThru for strongly-typed PSCustomObject pipeline output alongside human-readable console logs.
     Returns deterministic CI/CD exit codes (0 = Verified Pass, 1 = Integrity/Gate Failure).
 #>
 param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet('Preflight', 'Offload', 'Certificate', 'VerifyMhl', 'OrganizeByDate', 'DedupeScan', 'CompareArchives', 'ExportTelemetry')]
+    [ValidateSet('Preflight', 'Offload', 'Certificate', 'VerifyMhl', 'HealFromMirror', 'OrganizeByDate', 'DedupeScan', 'CompareArchives', 'ExportTelemetry')]
     [string]$Action = 'Preflight',
 
     [Parameter(Mandatory = $false)]
@@ -51,6 +52,9 @@ param(
 
     [Parameter(Mandatory = $false)]
     [switch]$UseHardlinks,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$PassThru,
 
     [Parameter(Mandatory = $false)]
     [bool]$VerifyLevel1 = $true,
@@ -238,6 +242,8 @@ function Invoke-PreflightScan {
         sequenceGapCount         = 0
         spannedClipGroupsCount   = 0
         spanGapWarnings          = @()
+        detectedCameraOems       = @()
+        oemStructureWarnings     = @()
         sameSizeDuplicateCount   = 0
         sameSizeDuplicateBytes   = [int64]0
         priorMhlMatchedCount     = 0
@@ -272,15 +278,46 @@ function Invoke-PreflightScan {
     $treeLeaves = New-Object 'System.Collections.Generic.List[string]'
     $dirBaseMap = @{}
     $seqMap     = @{}
+    $oemSet     = New-Object 'System.Collections.Generic.HashSet[string]'
+    $hasSonyM4Root    = $false
+    $hasSonyMediapro  = $false
 
     $allFiles = @(Get-ChildItem -LiteralPath $ScanPath -File -Recurse -Force -ErrorAction SilentlyContinue |
         Where-Object { -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) })
 
     foreach ($f in $allFiles) {
         $rel = Get-RelativePathSafe -BasePath $ScanPath -FullPath $f.FullName
+        $relUpper = $rel.Replace('/', '\').ToUpperInvariant()
         $nameLower = $f.Name.ToLowerInvariant()
         $ext = if ($f.Extension) { $f.Extension.ToLowerInvariant() } else { '.noext' }
         $inSys = $rel -match '(?i)(^|\\)(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
+
+        # Lead DIT Camera-Vendor OEM Folder & Container Fingerprinting
+        if ($relUpper.Contains('M4ROOT\CLIP') -or $relUpper.Contains('XDROOT')) {
+            $hasSonyM4Root = $true
+            [void]$oemSet.Add('Sony XAVC / Cinema Line')
+        }
+        if ($nameLower -eq 'mediapro.xml') {
+            $hasSonyMediapro = $true
+        }
+        if ($relUpper.Contains('.RDC\') -or $ext -eq '.r3d') {
+            [void]$oemSet.Add('RED Digital Cinema (.R3D)')
+        }
+        if ($ext -eq '.braw') {
+            [void]$oemSet.Add('Blackmagic RAW (.BRAW)')
+        }
+        if ($ext -eq '.ari' -or ($ext -eq '.mxf' -and $relUpper.Contains('ARRI'))) {
+            [void]$oemSet.Add('ARRI Alexa / Amira')
+        }
+        if ($relUpper.Contains('100EOS') -or $ext -eq '.cr3' -or $ext -eq '.cr2' -or $ext -eq '.crm') {
+            [void]$oemSet.Add('Canon EOS / Cinema')
+        }
+        if ($relUpper.Contains('100MEDIA') -or $relUpper.Contains('DJI') -or $ext -eq '.srt') {
+            [void]$oemSet.Add('DJI / Drone Media')
+        }
+        if ($ext -eq '.aae' -or $ext -eq '.heic') {
+            [void]$oemSet.Add('Apple iOS / Live Photo')
+        }
 
         if ($inSys) {
             $result.systemForensicFilesCount++
@@ -359,6 +396,14 @@ function Invoke-PreflightScan {
         if (-not $hasPrimaryMedia -and $sidecarsInGroup -gt 0) {
             $result.orphanSidecarsCount += $sidecarsInGroup
         }
+    }
+
+    if ($result.livePhotoPairsCount -gt 0) {
+        [void]$oemSet.Add('Apple iOS / Live Photo')
+    }
+    $result.detectedCameraOems = @($oemSet | Sort-Object)
+    if ($hasSonyM4Root -and (-not $hasSonyMediapro)) {
+        $result.oemStructureWarnings = @('Sony M4ROOT\CLIP detected without MEDIAPRO.XML (NLE spanned-clip & LUT conform warning)')
     }
 
     foreach ($numList in $seqMap.Values) {
@@ -895,7 +940,119 @@ function Invoke-VerifyMhlLedger {
     } else {
         Write-OffloadEventLog -EventId 1000 -EntryType 'Information' -Message "OffloadPro MHL Bitrot Verified: $okCount/$($nodes.Count) files intact."
     }
-    return $totalFailures
+    return [PSCustomObject]@{
+        totalSealed   = $nodes.Count
+        verifiedOk    = $okCount
+        missingCount  = $missingCount
+        sizeDrift     = $sizeMismatchCount
+        bitrotCount   = $bitrotCount
+        totalFailures = $totalFailures
+    }
+}
+
+# Self-Healing 3-2-1 Vault Repair: Repairs bitrot/corrupted files on Primary Archive using verified Mirror copy sealed by .MHL
+function Invoke-HealFromMirror {
+    param(
+        [string]$ArchivePath,
+        [string]$MirrorArchivePath,
+        [string]$ExplicitMhlPath,
+        [int]$MaxThreads = 6
+    )
+    $safeArchive = Assert-SafeTargetPath -InputPath $ArchivePath -IsMutating $true
+    $safeMirror  = Assert-SafeTargetPath -InputPath $MirrorArchivePath -IsMutating $false
+    $resolvedMhl = if (-not [string]::IsNullOrWhiteSpace($ExplicitMhlPath)) {
+        $ExplicitMhlPath
+    } else {
+        $folderName = Split-Path -Leaf $safeArchive
+        $parentDir  = Split-Path -Parent $safeArchive
+        Join-Path $parentDir "$folderName.mhl"
+    }
+
+    if (-not (Test-Path -LiteralPath $resolvedMhl)) {
+        throw "MHL ledger file not found at: $resolvedMhl. Cannot perform cryptographic self-healing without a sealed .mhl manifest."
+    }
+
+    [xml]$xmlDoc = Get-Content -LiteralPath $resolvedMhl -Raw -Encoding UTF8
+    $nodes = @($xmlDoc.hashlist.hash)
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "OffloadPro v4.1 Self-Healing Vault Repair -- Entries: $($nodes.Count)" -ForegroundColor Cyan
+    Write-Host "================================================================" -ForegroundColor Cyan
+
+    $healthyCount = 0
+    $corruptedFound = 0
+    $healedCount = 0
+    $unhealableCount = 0
+
+    foreach ($n in $nodes) {
+        $relFile = [string]$n.file
+        $expSize = [int64]$n.size
+        $algo = 'SHA256'; $expHash = ''
+        if ($n.sha256) { $algo = 'SHA256'; $expHash = ([string]$n.sha256).ToUpperInvariant() }
+        elseif ($n.md5) { $algo = 'MD5'; $expHash = ([string]$n.md5).ToUpperInvariant() }
+        elseif ($n.sha1) { $algo = 'SHA1'; $expHash = ([string]$n.sha1).ToUpperInvariant() }
+
+        $targetFull = Join-Path $safeArchive $relFile
+        $needsHeal  = $false
+
+        if (-not (Test-Path -LiteralPath $targetFull)) {
+            $needsHeal = $true
+        } else {
+            $tfi = Get-Item -LiteralPath $targetFull -Force
+            if ($tfi.Length -ne $expSize) {
+                $needsHeal = $true
+            } else {
+                $actualHash = Get-FileChecksumFull -FilePath $targetFull -HashAlgorithm $algo
+                if ($actualHash -ne $expHash) {
+                    $needsHeal = $true
+                }
+            }
+        }
+
+        if (-not $needsHeal) {
+            $healthyCount++
+            continue
+        }
+
+        $corruptedFound++
+        $mirrorFull = Join-Path $safeMirror $relFile
+        if (-not (Test-Path -LiteralPath $mirrorFull)) {
+            $unhealableCount++
+            continue
+        }
+
+        $mfi = Get-Item -LiteralPath $mirrorFull -Force
+        if ($mfi.Length -ne $expSize) {
+            $unhealableCount++
+            continue
+        }
+
+        $mirrorHash = Get-FileChecksumFull -FilePath $mirrorFull -HashAlgorithm $algo
+        if ($mirrorHash -ne $expHash) {
+            $unhealableCount++
+            continue
+        }
+
+        # Mirror file is 100% cryptographically verified against the original .mhl seal -> Atomically repair target
+        $repairedHash = Copy-SingleReadMultiWrite -SourceFile $mirrorFull -TargetFiles @($targetFull) -HashAlgorithm $algo
+        [System.IO.File]::SetCreationTimeUtc($targetFull, $mfi.CreationTimeUtc)
+        [System.IO.File]::SetLastWriteTimeUtc($targetFull, $mfi.LastWriteTimeUtc)
+        if ($repairedHash -eq $expHash) {
+            $healedCount++
+        } else {
+            $unhealableCount++
+        }
+    }
+
+    $color = if ($unhealableCount -eq 0) { 'Green' } else { 'Red' }
+    Write-Host "[SELF-HEALING VAULT COMPLETE] Total Sealed: $($nodes.Count) | Healthy: $healthyCount | Corrupted Found: $corruptedFound | Healed From Mirror: $healedCount | Unhealable: $unhealableCount" -ForegroundColor $color
+
+    return [PSCustomObject]@{
+        totalSealed     = $nodes.Count
+        healthyCount    = $healthyCount
+        corruptedFound  = $corruptedFound
+        healedCount     = $healedCount
+        unhealableCount = $unhealableCount
+    }
 }
 
 function Invoke-OrganizeByDate {
@@ -959,6 +1116,10 @@ function Invoke-OrganizeByDate {
     }
 
     Write-Host "[ORGANIZE BY DATE COMPLETE] Organized $organizedCount files across $($bucketSet.Count) date bucket(s) (Live Photos & .AAE/.XMP sidecars glued)." -ForegroundColor Green
+    return [PSCustomObject]@{
+        organizedFiles = $organizedCount
+        dateBuckets    = $bucketSet.Count
+    }
 }
 
 # Systems Design Professor Scalability Engine: Two-Stage O(1) Size-Pre-Filter + Multi-Threaded Cryptographic Deduplication
@@ -1045,6 +1206,12 @@ function Invoke-DedupeScan {
     }
 
     Write-Host "[DEDUPE SCAN COMPLETE] Total Scanned: $($files.Count) | Same-Size Candidates Hashed: $($candidates.Count) | True Hash Duplicates: $trueDupFiles ($([Math]::Round($reclaimableBytes / 1MB, 2)) MB reclaimable)" -ForegroundColor Green
+    return [PSCustomObject]@{
+        totalScanned       = $files.Count
+        sameSizeCandidates = $candidates.Count
+        trueDuplicates     = $trueDupFiles
+        reclaimableBytes   = $reclaimableBytes
+    }
 }
 
 function Invoke-CompareArchives {
@@ -1054,11 +1221,16 @@ function Invoke-CompareArchives {
     $exactParity = ($scanA.merkleStructureRoot -eq $scanB.merkleStructureRoot) -and ($null -ne $scanA.merkleStructureRoot)
     $color = if ($exactParity) { 'Green' } else { 'Yellow' }
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "OffloadPro v4.0 Cross-Archive Merkle & Parity Comparator" -ForegroundColor Cyan
+    Write-Host "OffloadPro v4.1 Cross-Archive Merkle & Parity Comparator" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host "Archive A Real Files : $($scanA.realFilesCount) ($([Math]::Round($scanA.realFilesBytes / 1GB, 3)) GB) | Merkle: $($scanA.merkleStructureRoot)"
     Write-Host "Archive B Real Files : $($scanB.realFilesCount) ($([Math]::Round($scanB.realFilesBytes / 1GB, 3)) GB) | Merkle: $($scanB.merkleStructureRoot)"
     Write-Host "100% Merkle Parity   : $exactParity" -ForegroundColor $color
+    return [PSCustomObject]@{
+        archiveACount = $scanA.realFilesCount
+        archiveBCount = $scanB.realFilesCount
+        exactParity   = $exactParity
+    }
 }
 
 $script:ExitCodeToReturn = 0
@@ -1068,18 +1240,24 @@ try {
         'Preflight' {
             $vols = Get-MountedVolumesTelemetry
             $scan = Invoke-PreflightScan -ScanPath $TargetPath
+            $oems = if ($scan.detectedCameraOems.Count -gt 0) { $scan.detectedCameraOems -join ', ' } else { 'Generic Media' }
             Write-Host "================================================================" -ForegroundColor Cyan
-            Write-Host "OffloadPro v4.0 Pre-Flight X-Ray (Pure PowerShell)" -ForegroundColor Cyan
+            Write-Host "OffloadPro v4.1 Pre-Flight X-Ray (Pure PowerShell)" -ForegroundColor Cyan
             Write-Host "================================================================" -ForegroundColor Cyan
             Write-Host "Mounted Volumes Detected : $($vols.Count)"
+            Write-Host "Detected Camera OEMs     : $oems"
             Write-Host "Real Media/User Files    : $($scan.realFilesCount) ($([Math]::Round($scan.realFilesBytes / 1GB, 3)) GB)"
             Write-Host "Protected Sidecars       : $($scan.creativeSidecarsCount) | Live Photo Pairs: $($scan.livePhotoPairsCount) | Orphan Sidecars: $($scan.orphanSidecarsCount)"
             Write-Host "Sequence Numbering Gaps  : $($scan.sequenceGapCount)"
             Write-Host "macOS ._* 4KB Sidecars   : $($scan.macAppleDoubleCount) ($([Math]::Round($scan.macAppleDoubleBytes / 1MB, 2)) MB)"
             Write-Host "exFAT 128KB Slack Waste  : ~$([Math]::Round($scan.estimatedExfatSlackBytes / 1MB, 1)) MB"
+            if ($scan.oemStructureWarnings.Count -gt 0) {
+                Write-Host "OEM Structure Warnings   : $($scan.oemStructureWarnings -join '; ')" -ForegroundColor Yellow
+            }
             if ($scan.merkleStructureRoot) {
                 Write-Host "SHA-256 Tree Merkle Root : $($scan.merkleStructureRoot)" -ForegroundColor Green
             }
+            if ($PassThru) { Write-Output $scan }
         }
         'ExportTelemetry' {
             $vols = Get-MountedVolumesTelemetry
@@ -1092,6 +1270,7 @@ try {
             $json = $payload | ConvertTo-Json -Depth 8 -Compress
             Set-Content -LiteralPath $TelemetryJsPath -Value "window.__OFFLOADPRO_TELEMETRY__ = $json;" -Encoding UTF8
             Write-Host "Exported offline telemetry snapshot to public\offloadpro-telemetry.js" -ForegroundColor Green
+            if ($PassThru) { Write-Output ([PSCustomObject]$payload) }
         }
         'Offload' {
             $safeSrc  = Assert-SafeTargetPath -InputPath $SourceRoot -IsMutating $false
@@ -1205,24 +1384,45 @@ try {
             if ($script:ExitCodeToReturn -eq 0) {
                 Write-OffloadEventLog -EventId 1000 -EntryType 'Information' -Message "OffloadPro Offload Completed ($traffic): $copied files verified."
             }
+            if ($PassThru) {
+                Write-Output ([PSCustomObject]@{
+                    queuedFiles    = $queue.Count
+                    processedFiles = $copied
+                    resumedFiles   = $resumedSkipped
+                    newlyCopied    = ($copied - $resumedSkipped)
+                    hashMismatches = $mismatches
+                    status         = $traffic
+                })
+            }
         }
         'Certificate' {
             New-MhlAndCertificate -ArchivePath $TargetPath -HashAlgorithm $Algorithm -MaxThreads $Threads
         }
         'VerifyMhl' {
-            $mhlFailures = Invoke-VerifyMhlLedger -ArchivePath $TargetPath -ExplicitMhlPath $MhlPath -MaxThreads $Threads
-            if ($mhlFailures -gt 0) {
+            $mhlRes = Invoke-VerifyMhlLedger -ArchivePath $TargetPath -ExplicitMhlPath $MhlPath -MaxThreads $Threads
+            if ($mhlRes.totalFailures -gt 0) {
                 $script:ExitCodeToReturn = 1
             }
+            if ($PassThru) { Write-Output $mhlRes }
+        }
+        'HealFromMirror' {
+            $healRes = Invoke-HealFromMirror -ArchivePath $TargetPath -MirrorArchivePath $SourceRoot -ExplicitMhlPath $MhlPath -MaxThreads $Threads
+            if ($healRes.unhealableCount -gt 0) {
+                $script:ExitCodeToReturn = 1
+            }
+            if ($PassThru) { Write-Output $healRes }
         }
         'OrganizeByDate' {
-            Invoke-OrganizeByDate -SourceArchive $SourceRoot -OrganizedRoot $DestinationRoot -CreateHardlinks:$UseHardlinks
+            $orgRes = Invoke-OrganizeByDate -SourceArchive $SourceRoot -OrganizedRoot $DestinationRoot -CreateHardlinks:$UseHardlinks
+            if ($PassThru) { Write-Output $orgRes }
         }
         'DedupeScan' {
-            Invoke-DedupeScan -ArchivePath $TargetPath -HashAlgorithm $Algorithm -MaxThreads $Threads
+            $dedupeRes = Invoke-DedupeScan -ArchivePath $TargetPath -HashAlgorithm $Algorithm -MaxThreads $Threads
+            if ($PassThru) { Write-Output $dedupeRes }
         }
         'CompareArchives' {
-            Invoke-CompareArchives -ArchiveA $SourceRoot -ArchiveB $DestinationRoot
+            $cmpRes = Invoke-CompareArchives -ArchiveA $SourceRoot -ArchiveB $DestinationRoot
+            if ($PassThru) { Write-Output $cmpRes }
         }
     }
 } finally {
