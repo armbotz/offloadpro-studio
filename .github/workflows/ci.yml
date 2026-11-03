@@ -29,20 +29,21 @@ jobs:
             Write-Error "CI GATE FAILED: Tracked .mhl manifest found in repository."
             exit 1
           }
-          Write-Host "✓ Zero-Node.js & Privacy Gate Passed." -ForegroundColor Green
+          Write-Host "[OK] Zero-Node.js & Privacy Gate Passed." -ForegroundColor Green
 
-      - name: 2. PowerShell AST Syntax & Static Validation
-        shell: pwsh
+      - name: 2. PowerShell AST Syntax & Static Validation (PS 7+ & Windows PS 5.1)
+        shell: powershell
         run: |
           $scripts = Get-ChildItem -Path .\scripts -Filter '*.ps1' -File
           foreach ($s in $scripts) {
+            $tokens = $null
             $errors = $null
-            [void][System.Management.Automation.Language.Parser]::ParseFile($s.FullName, [ref]$null, [ref]$errors)
+            [void][System.Management.Automation.Language.Parser]::ParseFile($s.FullName, [ref]$tokens, [ref]$errors)
             if ($errors.Count -gt 0) {
               Write-Error "Syntax error in $($s.Name): $($errors | Out-String)"
               exit 1
             }
-            Write-Host "✓ AST Verified: $($s.Name)" -ForegroundColor Green
+            Write-Host "[OK] AST Verified (PS 5.1): $($s.Name)" -ForegroundColor Green
           }
 
       - name: 3. Execute 7-Invariant TDD & Mutation Test Suite (PowerShell 7+)

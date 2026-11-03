@@ -56,7 +56,7 @@ $files = @(Get-ChildItem -LiteralPath $DestinationRoot -File -Recurse -Force -Er
     })
 
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "OffloadPro 3-Level Audit — Total Target Files: $($files.Count)" -ForegroundColor Cyan
+Write-Host "OffloadPro 3-Level Audit -- Total Target Files: $($files.Count)" -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 
 Set-AuditAwakeLock -Enable $true

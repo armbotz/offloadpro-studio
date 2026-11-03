@@ -1,11 +1,12 @@
 <#
 .SYNOPSIS
-    OffloadPro DIT Studio v3.3 — Pure PowerShell Single-Read Multi-Destination Offload,
+    OffloadPro DIT Studio v3.3 - Pure PowerShell Single-Read Multi-Destination Offload,
     Pre-Flight ECDF/Merkle/Gap X-Ray, S.M.A.R.T. Volume Bay, Full-Roll Multi-Threaded ASC-MHL Sealer,
     MHL Bitrot Verifier, Sidecar-Glued Date Organizer, Cross-Archive Comparator & Win32 Sleep Guard.
 .DESCRIPTION
     100% Native PowerShell 5.1 & PowerShell 7+ (.NET Framework 4.8 & .NET 8/9) compatible engine
     requiring zero Node.js runtime, zero npm packages, and zero localhost HTTP servers.
+    Pure 7-bit ASCII source encoding for 100% deterministic parsing in Windows PowerShell 5.1 and PowerShell 7+.
     Returns deterministic CI/CD exit codes (0 = Verified Pass, 1 = Integrity/Gate Failure).
 #>
 param(
@@ -109,6 +110,9 @@ function Assert-SafeTargetPath {
         throw "Target path cannot be empty."
     }
     $resolved = [System.IO.Path]::GetFullPath($InputPath)
+    if (Test-Path -LiteralPath $resolved) {
+        $resolved = (Get-Item -LiteralPath $resolved -Force).FullName
+    }
     $lower = $resolved.ToLowerInvariant()
     $forbidden = @('c:\windows', 'c:\program files', 'c:\program files (x86)', 'c:\programdata', 'c:\system volume information')
     foreach ($prefix in $forbidden) {
@@ -120,6 +124,15 @@ function Assert-SafeTargetPath {
         throw "Mutating operations on C:\ root are blocked."
     }
     return $resolved
+}
+
+function Get-RelativePathSafe {
+    param([string]$BasePath, [string]$FullPath)
+    $cleanBase = $BasePath.TrimEnd('\', '/')
+    if ($FullPath.StartsWith($cleanBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $FullPath.Substring($cleanBase.Length).TrimStart('\', '/')
+    }
+    return [System.IO.Path]::GetFileName($FullPath)
 }
 
 function Assert-DestinationSafetyGates {
@@ -147,11 +160,12 @@ function Assert-DestinationSafetyGates {
         }
 
         if ((Test-Path -LiteralPath $dst) -and (-not $AllowRollOverwrite)) {
-            $existingFiles = @(Get-ChildItem -LiteralPath $dst -File -Recurse -Force -ErrorAction SilentlyContinue)
+            $dstNorm = (Get-Item -LiteralPath $dst -Force).FullName
+            $existingFiles = @(Get-ChildItem -LiteralPath $dstNorm -File -Recurse -Force -ErrorAction SilentlyContinue)
             if ($existingFiles.Count -gt 0) {
                 $sizeMap = @{}
                 foreach ($ef in $existingFiles) {
-                    $rel = $ef.FullName.Substring($dst.Length).TrimStart('\')
+                    $rel = Get-RelativePathSafe -BasePath $dstNorm -FullPath $ef.FullName
                     $sizeMap[$rel] = $ef.Length
                 }
                 $collisions = 0
@@ -203,6 +217,9 @@ function Get-MountedVolumesTelemetry {
 function Invoke-PreflightScan {
     param([string]$ScanPath)
     $exists = Test-Path -LiteralPath $ScanPath -ErrorAction SilentlyContinue
+    if ($exists) {
+        $ScanPath = (Get-Item -LiteralPath $ScanPath -Force).FullName
+    }
     $result = [ordered]@{
         targetPath               = $ScanPath
         exists                   = [bool]$exists
@@ -254,7 +271,7 @@ function Invoke-PreflightScan {
         Where-Object { -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) })
 
     foreach ($f in $allFiles) {
-        $rel = $f.FullName.Substring($ScanPath.Length).TrimStart('\')
+        $rel = Get-RelativePathSafe -BasePath $ScanPath -FullPath $f.FullName
         $nameLower = $f.Name.ToLowerInvariant()
         $ext = if ($f.Extension) { $f.Extension.ToLowerInvariant() } else { '.noext' }
         $inSys = $rel -match '(?i)(^|\\)(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
@@ -310,7 +327,6 @@ function Invoke-PreflightScan {
             }
             [void]$dirBaseMap[$baseKey].Add($ext)
 
-            # Track camera clip numbering sequences per folder (e.g. C0001.MP4, IMG_1042.JPG, DSC00123.ARW)
             if (-not ($CreativeSidecarExts -contains $ext) -and $baseLower -match '^([a-z_]+?)(\d{3,6})$') {
                 $seqKey = "$($f.DirectoryName)\$($Matches[1])$ext"
                 if (-not $seqMap.ContainsKey($seqKey)) {
@@ -321,7 +337,6 @@ function Invoke-PreflightScan {
         }
     }
 
-    # Check Live Photo pairs and Orphan Creative Sidecars
     foreach ($extSet in $dirBaseMap.Values) {
         if ($extSet.Contains('.mov') -and ($extSet.Contains('.heic') -or $extSet.Contains('.jpg') -or $extSet.Contains('.jpeg'))) {
             $result.livePhotoPairsCount++
@@ -340,7 +355,6 @@ function Invoke-PreflightScan {
         }
     }
 
-    # Check Camera Sequence Numbering Gaps
     foreach ($numList in $seqMap.Values) {
         if ($numList.Count -gt 1) {
             $uniqueSorted = @($numList | Sort-Object -Unique)
@@ -377,9 +391,9 @@ function Invoke-PreflightScan {
 
         $bDefs = @(
             [ordered]@{ label = '< 1 MB';     min = [int64]0;           max = [int64]1MB;   count = 0; bytes = [int64]0 },
-            [ordered]@{ label = '1–10 MB';    min = [int64]1MB;         max = [int64]10MB;  count = 0; bytes = [int64]0 },
-            [ordered]@{ label = '10–50 MB';   min = [int64]10MB;        max = [int64]50MB;  count = 0; bytes = [int64]0 },
-            [ordered]@{ label = '50–150 MB';  min = [int64]50MB;        max = [int64]150MB; count = 0; bytes = [int64]0 },
+            [ordered]@{ label = '1-10 MB';    min = [int64]1MB;         max = [int64]10MB;  count = 0; bytes = [int64]0 },
+            [ordered]@{ label = '10-50 MB';   min = [int64]10MB;        max = [int64]50MB;  count = 0; bytes = [int64]0 },
+            [ordered]@{ label = '50-150 MB';  min = [int64]50MB;        max = [int64]150MB; count = 0; bytes = [int64]0 },
             [ordered]@{ label = '150+ MB';    min = [int64]150MB;       max = [int64]::MaxValue; count = 0; bytes = [int64]0 }
         )
         foreach ($sz in $realSizes) {
@@ -513,7 +527,7 @@ function New-MhlAndCertificate {
         if ($extSummary.ContainsKey($ext)) { $extSummary[$ext]++ } else { $extSummary[$ext] = 1 }
         if ($f.LastWriteTimeUtc -lt $minDateUtc) { $minDateUtc = $f.LastWriteTimeUtc }
         if ($f.LastWriteTimeUtc -gt $maxDateUtc) { $maxDateUtc = $f.LastWriteTimeUtc }
-        $rel = $f.FullName.Substring($safeArchive.Length).TrimStart('\')
+        $rel = Get-RelativePathSafe -BasePath $safeArchive -FullPath $f.FullName
         $treeLeaves.Add("$($rel.Replace('/','\')):$($f.Length)")
     }
 
@@ -550,7 +564,7 @@ function New-MhlAndCertificate {
     }
 
     foreach ($f in $files) {
-        $rel = $f.FullName.Substring($safeArchive.Length).TrimStart('\')
+        $rel = Get-RelativePathSafe -BasePath $safeArchive -FullPath $f.FullName
         $mtimeIso = $f.LastWriteTimeUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')
         if ($PrecomputedHashes -and $PrecomputedHashes.ContainsKey($rel)) {
             $mhlEntries.Add([PSCustomObject]@{ RelPath = $rel; Size = $f.Length; MTime = $mtimeIso; Hash = $PrecomputedHashes[$rel] })
@@ -663,7 +677,7 @@ $mhlNodes
             if ($bytes.Length -gt 0) {
                 $b64 = [Convert]::ToBase64String($bytes)
                 $szMB = [Math]::Round($vc.Length / 1MB, 1)
-                $thumbCards.Add("<div style='background:#0f1626;border:1px solid #1e293b;border-radius:8px;overflow:hidden;'><img src='data:image/jpeg;base64,$b64' style='width:100%;height:105px;object-fit:cover;display:block;'/><div style='padding:8px;font-size:11px;'><div style='color:#f8fafc;font-weight:600;'>Clip #$clipIndex ($($vc.Extension.ToUpper()))</div><div style='color:#94a3b8;margin-top:2px;'>$szMB MB • Stream Decoded</div></div></div>")
+                $thumbCards.Add("<div style='background:#0f1626;border:1px solid #1e293b;border-radius:8px;overflow:hidden;'><img src='data:image/jpeg;base64,$b64' style='width:100%;height:105px;object-fit:cover;display:block;'/><div style='padding:8px;font-size:11px;'><div style='color:#f8fafc;font-weight:600;'>Clip #$clipIndex ($($vc.Extension.ToUpper()))</div><div style='color:#94a3b8;margin-top:2px;'>$szMB MB &bull; Stream Decoded</div></div></div>")
                 $clipIndex++
             }
         }
@@ -678,7 +692,7 @@ $mhlNodes
     }) -join ' '
 
     $thumbsHtml = if ($thumbCards.Count -gt 0) {
-        "<h3 style='margin-top:28px;margin-bottom:10px;'>Offline Visual Contact Sheet ($($thumbCards.Count) Sample Clips — Embedded Base64)</h3><div style='display:grid;grid-template-columns:repeat(4,1fr);gap:12px;'>$($thumbCards -join '')</div>"
+        "<h3 style='margin-top:28px;margin-bottom:10px;'>Offline Visual Contact Sheet ($($thumbCards.Count) Sample Clips &mdash; Embedded Base64)</h3><div style='display:grid;grid-template-columns:repeat(4,1fr);gap:12px;'>$($thumbCards -join '')</div>"
     } else { '' }
 
     $certHtml = @"
@@ -686,7 +700,7 @@ $mhlNodes
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>DIT Offload & Full-Roll ASC-MHL Certificate</title>
+<title>DIT Offload &amp; Full-Roll ASC-MHL Certificate</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f17; color: #e2e8f0; padding: 40px; }
   .card { max-width: 1020px; margin: 0 auto; background: #131b2e; border: 1px solid #263554; border-radius: 14px; padding: 32px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
@@ -703,24 +717,24 @@ $mhlNodes
   <div class="card">
     <div class="header">
       <div>
-        <h1 style="margin:0;font-size:24px;">OffloadPro DIT Studio v3.3 — Camera Roll Verification Certificate</h1>
+        <h1 style="margin:0;font-size:24px;">OffloadPro DIT Studio v3.3 &mdash; Camera Roll Verification Certificate</h1>
         <p style="margin:6px 0 0;color:#94a3b8;">Generated: $nowIso | Capture Window: $dateRangeFormatted</p>
       </div>
-      <div class="stamp">✓ 100% FULL-ROLL ASC-MHL SEALED</div>
+      <div class="stamp">&#10003; 100% FULL-ROLL ASC-MHL SEALED</div>
     </div>
     <div class="grid">
       <div class="metric"><div class="label">100% Sealed Media Files</div><div class="val">$($mhlEntries.Count) / $($files.Count) Files</div></div>
       <div class="metric"><div class="label">Total Archive Payload</div><div class="val">$([Math]::Round($totalBytes / 1GB, 2)) GB</div></div>
       <div class="metric"><div class="label">Total Playable Duration</div><div class="val" style="color:#38bdf8;">$durationFormatted</div></div>
       <div class="metric"><div class="label">Level 1 Cryptographic Seal</div><div class="val" style="color:#34d399;">0 Mismatches ($HashAlgorithm)</div></div>
-      <div class="metric"><div class="label">Level 2 & 3 Stream Decode</div><div class="val" style="color:#34d399;">100% Playable</div></div>
+      <div class="metric"><div class="label">Level 2 &amp; 3 Stream Decode</div><div class="val" style="color:#34d399;">100% Playable</div></div>
       <div class="metric"><div class="label">Capture Date Range</div><div class="val" style="font-size:15px;">$dateRangeFormatted</div></div>
     </div>
     <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.35);padding:12px;border-radius:9px;margin-bottom:20px;font-size:12px;">
-      <strong style="color:#34d399;">🔒 SHA-256 Tree Structure Merkle Root:</strong>
+      <strong style="color:#34d399;">SHA-256 Tree Structure Merkle Root:</strong>
       <code style="display:block;margin-top:4px;color:#cbd5e1;word-break:break-all;">$merkleRoot</code>
     </div>
-    <h3 style="margin-bottom:8px;">Camera Codec, Resolution & Container Breakdown</h3>
+    <h3 style="margin-bottom:8px;">Camera Codec, Resolution &amp; Container Breakdown</h3>
     <div>$codecBadges $extBadges</div>
     $thumbsHtml
   </div>
@@ -753,7 +767,7 @@ function Invoke-VerifyMhlLedger {
     [xml]$xmlDoc = Get-Content -LiteralPath $resolvedMhl -Raw -Encoding UTF8
     $nodes = @($xmlDoc.hashlist.hash)
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "OffloadPro v3.3 Vault & Bitrot MHL Verifier — Entries: $($nodes.Count)" -ForegroundColor Cyan
+    Write-Host "OffloadPro v3.3 Vault & Bitrot MHL Verifier -- Entries: $($nodes.Count)" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Cyan
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -821,13 +835,12 @@ function Invoke-VerifyMhlLedger {
 
     if ($totalFailures -gt 0) {
         Write-OffloadEventLog -EventId 4001 -EntryType 'Error' -Message "OffloadPro MHL Bitrot Failure: Missing=$missingCount, SizeDrift=$sizeMismatchCount, Bitrot=$bitrotCount"
-        exit 1
     } else {
         Write-OffloadEventLog -EventId 1000 -EntryType 'Information' -Message "OffloadPro MHL Bitrot Verified: $okCount/$($nodes.Count) files intact."
     }
+    return $totalFailures
 }
 
-# Persona 2 (Camera Hobbyist / Hybrid Shooter): Non-Destructive Date Organizer that glues Live Photos & Creative Sidecars to Parent Media Date
 function Invoke-OrganizeByDate {
     param(
         [string]$SourceArchive,
@@ -845,7 +858,6 @@ function Invoke-OrganizeByDate {
             $_.FullName -notmatch '(?i)\\(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
         })
 
-    # Pass 1: Determine canonical capture date per (Directory + BaseName) from primary media first (so edited .AAE/.XMP sidecars stay glued to photo date)
     $groupDateMap = @{}
     foreach ($f in $files) {
         $ext = if ($f.Extension) { $f.Extension.ToLowerInvariant() } else { '' }
@@ -864,7 +876,6 @@ function Invoke-OrganizeByDate {
         }
     }
 
-    # Pass 2: Copy or Hardlink into YYYY\YYYY-MM-DD buckets
     $organizedCount = 0
     $bucketSet = New-Object 'System.Collections.Generic.HashSet[string]'
     foreach ($f in $files) {
@@ -893,7 +904,6 @@ function Invoke-OrganizeByDate {
     Write-Host "[ORGANIZE BY DATE COMPLETE] Organized $organizedCount files across $($bucketSet.Count) date bucket(s) (Live Photos & .AAE/.XMP sidecars glued)." -ForegroundColor Green
 }
 
-# Persona 3 (Data Hoarder / Archival Nerd): Cross-Archive Merkle & Duplicate Comparator
 function Invoke-CompareArchives {
     param([string]$ArchiveA, [string]$ArchiveB)
     $scanA = Invoke-PreflightScan -ScanPath $ArchiveA
@@ -908,6 +918,7 @@ function Invoke-CompareArchives {
     Write-Host "100% Merkle Parity   : $exactParity" -ForegroundColor $color
 }
 
+$script:ExitCodeToReturn = 0
 Set-ExecutionAwakeLock -Enable $true
 try {
     switch ($Action) {
@@ -952,7 +963,7 @@ try {
                 Where-Object { -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) })
 
             $queue = @(foreach ($f in $allItems) {
-                $rel = $f.FullName.Substring($safeSrc.Length).TrimStart('\')
+                $rel = Get-RelativePathSafe -BasePath $safeSrc -FullPath $f.FullName
                 $inSys = $rel -match '(?i)(^|\\)(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
                 $isJunk = $f.Name.StartsWith('._') -or ($OsJunkNames -contains $f.Name.ToLowerInvariant())
                 if ($MacMode -eq 'clean' -and ($inSys -or $isJunk)) { continue }
@@ -1009,21 +1020,24 @@ try {
 
             if ($mismatches -gt 0) {
                 Write-OffloadEventLog -EventId 4001 -EntryType 'Error' -Message "OffloadPro Level 1 Hash Mismatch count: $mismatches"
-                exit 1
-            }
-
-            if ($VerifyLevel2 -or $VerifyLevel3) {
+                $script:ExitCodeToReturn = 1
+            } elseif ($VerifyLevel2 -or $VerifyLevel3) {
                 $auditScript = Join-Path $ScriptDir 'Invoke-3LevelAudit.ps1'
                 & $auditScript -SourceRoot $safeSrc -DestinationRoot $safeDst1 -SkipLevel1Hash -SkipLevel3DeepDecode:(-not $VerifyLevel3) -Threads $Threads
-                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+                if ($LASTEXITCODE -ne 0) { $script:ExitCodeToReturn = $LASTEXITCODE }
             }
-            Write-OffloadEventLog -EventId 1000 -EntryType 'Information' -Message "OffloadPro Offload Completed ($traffic): $copied files verified."
+            if ($script:ExitCodeToReturn -eq 0) {
+                Write-OffloadEventLog -EventId 1000 -EntryType 'Information' -Message "OffloadPro Offload Completed ($traffic): $copied files verified."
+            }
         }
         'Certificate' {
             New-MhlAndCertificate -ArchivePath $TargetPath -HashAlgorithm $Algorithm -MaxThreads $Threads
         }
         'VerifyMhl' {
-            Invoke-VerifyMhlLedger -ArchivePath $TargetPath -ExplicitMhlPath $MhlPath -MaxThreads $Threads
+            $mhlFailures = Invoke-VerifyMhlLedger -ArchivePath $TargetPath -ExplicitMhlPath $MhlPath -MaxThreads $Threads
+            if ($mhlFailures -gt 0) {
+                $script:ExitCodeToReturn = 1
+            }
         }
         'OrganizeByDate' {
             Invoke-OrganizeByDate -SourceArchive $SourceRoot -OrganizedRoot $DestinationRoot -CreateHardlinks:$UseHardlinks
@@ -1035,3 +1049,8 @@ try {
 } finally {
     Set-ExecutionAwakeLock -Enable $false
 }
+
+if ($script:ExitCodeToReturn -ne 0) {
+    exit $script:ExitCodeToReturn
+}
+exit 0
