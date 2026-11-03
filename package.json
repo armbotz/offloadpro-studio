@@ -1,9 +1,0 @@
-{
-  "name": "offloadpro-dit-studio",
-  "version": "2.0.0",
-  "description": "ShotPut Pro-style DIT Media Offload, Multi-Destination Inline Checksum, FFmpeg 3-Level Stream Validator, ASC-MHL & macOS Forensic Studio",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  }
-}

@@ -1,7 +1,4 @@
-# Dependencies
-node_modules/
-
-# Local machine private configuration (untracked)
+# Local machine private configuration & telemetry (untracked)
 .offloadpro.local.json
 
 # Logs & generated reports
@@ -17,6 +14,9 @@ mac_metadata_findings.txt
 .DS_Store
 ._*
 Thumbs.db
+desktop.ini
 .vscode/
 .idea/
 .env
+
+GEMINI.md

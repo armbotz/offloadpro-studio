@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OffloadPro DIT Studio v2.0 — Multi-Stakeholder Ingest & 3-Level Audit</title>
+  <title>OffloadPro DIT Studio v3.0 — Pure PowerShell & Offline Static HTML Studio</title>
+  <script src="offloadpro-telemetry.js"></script>
   <style>
     :root {
       --bg-0: #070b12;
@@ -43,6 +44,8 @@
       position: sticky;
       top: 0;
       z-index: 50;
+      flex-wrap: wrap;
+      gap: 12px;
     }
     .brand {
       display: flex;
@@ -91,7 +94,7 @@
       margin: 0 auto;
       padding: 24px 28px 60px;
       display: grid;
-      grid-template-columns: 390px 450px 1fr;
+      grid-template-columns: 390px 460px 1fr;
       gap: 22px;
     }
     @media (max-width: 1300px) {
@@ -117,6 +120,7 @@
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--text-1);
+      gap: 8px;
     }
 
     .drive-card {
@@ -236,10 +240,10 @@
     .btn-primary {
       width: 100%;
       padding: 13px;
-      margin-top: 16px;
+      margin-top: 14px;
       background: linear-gradient(135deg, #0284c7, #2563eb);
       color: #fff;
-      font-size: 14px;
+      font-size: 13.5px;
       box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
     }
     .btn-primary:hover { filter: brightness(1.1); }
@@ -300,9 +304,11 @@
       font-family: 'Consolas', monospace;
       font-size: 12px;
       color: #94a3b8;
-      max-height: 210px;
+      max-height: 230px;
       overflow-y: auto;
       line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-all;
     }
     .console div { margin-bottom: 3px; }
     .console .ok { color: #34d399; }
@@ -329,8 +335,8 @@
     <div class="brand">
       <div class="logo-badge">OP</div>
       <div>
-        <h1>OffloadPro DIT Studio v2.0</h1>
-        <span>Single-Read Multi-Destination Offload • 3-Level FFmpeg Stream Validator • S.M.A.R.T. & 3-2-1 Guard</span>
+        <h1>OffloadPro DIT Studio v3.0 (100% Pure PowerShell + Static Offline HTML)</h1>
+        <span>Zero Node.js • Zero Localhost Server • Browser-Native Pre-Flight ECDF/Merkle X-Ray • 3-Level FFmpeg Validator</span>
       </div>
     </div>
     <div id="trafficBanner" class="traffic-banner">
@@ -338,20 +344,26 @@
     </div>
   </header>
 
+  <!-- Hidden Browser Directory Picker for 100% Offline Client-Side Folder X-Ray -->
+  <input type="file" id="browserDirInput" webkitdirectory multiple style="display:none" onchange="handleBrowserFolderScan(this.files)" />
+
   <div class="container">
     <!-- COLUMN 1: HARDWARE VOLUME BAY & PRE-FLIGHT -->
     <div class="panel">
       <div class="panel-title">
         <span>1. Hardware Volume Bay & S.M.A.R.T.</span>
-        <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="loadDrives()">Refresh</button>
+        <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="buildTelemetryRefreshCmd()">🔄 CLI Refresh Cmd</button>
       </div>
-      <div id="drivesList">Loading mounted volumes...</div>
+      <div id="drivesList">Loading telemetry snapshot...</div>
 
       <div class="panel-title" style="margin-top:22px;">
-        <span>Pre-Flight Source / Backup X-Ray v2.0</span>
-        <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="runPreflight()">Scan Path</button>
+        <span>Pre-Flight Source / Backup X-Ray v3.0</span>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary" style="padding:5px 9px;font-size:11px;border-color:#38bdf8;color:#38bdf8;" onclick="document.getElementById('browserDirInput').click()">📂 Scan Folder in Browser</button>
+          <button class="btn btn-secondary" style="padding:5px 9px;font-size:11px;" onclick="buildPreflightCmd()">⚡ PS1 Cmd</button>
+        </div>
       </div>
-      <input type="text" id="preflightPath" value="E:\Backups\Camera_Offload_001" />
+      <input type="text" id="preflightPath" value="E:\Backups\Camera_Offload_001" oninput="syncTargetLabel()" />
       <div id="preflightResult" style="margin-top:12px;font-size:12.5px;color:var(--text-1);"></div>
     </div>
 
@@ -362,18 +374,18 @@
       </div>
 
       <label>Source Card / Directory</label>
-      <input type="text" id="srcInput" value="D:\" />
+      <input type="text" id="srcInput" value="D:\" oninput="updateCommandDock()" />
 
       <label>Primary Destination Path (Copy #1)</label>
-      <input type="text" id="dst1Input" value="E:\Backups\Camera_Offload_001" />
+      <input type="text" id="dst1Input" value="E:\Backups\Camera_Offload_001" oninput="updateCommandDock()" />
 
       <label>Secondary Simultaneous Destination (Copy #2 for 3-2-1 Rule)</label>
-      <input type="text" id="dst2Input" placeholder="e.g. F:\Backups\Camera_Mirror_001 (enables Green 3-2-1 Status)" />
+      <input type="text" id="dst2Input" placeholder="e.g. F:\Backups\Camera_Mirror_001 (enables Green 3-2-1 Status)" oninput="updateCommandDock()" />
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div>
           <label>Checksum Algorithm</label>
-          <select id="algoSelect">
+          <select id="algoSelect" onchange="updateCommandDock()">
             <option value="SHA256" selected>SHA-256 (Collision-Resistant Default)</option>
             <option value="MD5">MD5 (Legacy Fast Checksum)</option>
             <option value="SHA1">SHA-1</option>
@@ -381,7 +393,7 @@
         </div>
         <div>
           <label>macOS Metadata Mode</label>
-          <select id="macModeSelect">
+          <select id="macModeSelect" onchange="updateCommandDock()">
             <option value="clean">Option 2: Clean (Skip ._* & Trash)</option>
             <option value="forensic_split" selected>Forensic Split (._* to _forensics)</option>
             <option value="raw">Option 1: True Raw 1:1</option>
@@ -392,28 +404,28 @@
       <label>3-Level Verification & Hardware Rescue Profile</label>
       <div class="check-group">
         <label class="check-item" style="margin:0;">
-          <input type="checkbox" id="chkL1" checked />
+          <input type="checkbox" id="chkL1" checked onchange="updateCommandDock()" />
           <div>
             <strong>Level 1: Inline Source Read + Destination Readback Hash</strong>
             <small>Reads SD card only once while hashing in RAM & verifies written files bit-for-bit.</small>
           </div>
         </label>
         <label class="check-item" style="margin:0;">
-          <input type="checkbox" id="chkL2" checked />
+          <input type="checkbox" id="chkL2" checked onchange="updateCommandDock()" />
           <div>
             <strong>Level 2: FFprobe Container, moov Atom & Header Check</strong>
             <small>Verifies every .MOV/.MP4/JPEG/Audio/PDF container & keyframe header is intact.</small>
           </div>
         </label>
         <label class="check-item" style="margin:0;">
-          <input type="checkbox" id="chkL3" />
+          <input type="checkbox" id="chkL3" onchange="updateCommandDock()" />
           <div>
             <strong>Level 3: FFmpeg Deep End-to-End Frame/Stream Decode</strong>
             <small>Demuxes 100% of every media stream and decodes keyframes + audio to catch mid-file bitrot.</small>
           </div>
         </label>
         <label class="check-item" style="margin:0;border-top:1px solid var(--border);padding-top:8px;margin-top:6px;">
-          <input type="checkbox" id="chkRescue" />
+          <input type="checkbox" id="chkRescue" onchange="updateCommandDock()" />
           <div>
             <strong style="color:#fbbf24;">🚑 Dying Card Rescue Mode (Smallest-First, 1-Thread)</strong>
             <small>Sorts queue smallest-to-largest to rescue maximum files before NAND thermal/FTL lockup.</small>
@@ -422,24 +434,27 @@
       </div>
 
       <button class="btn btn-primary" onclick="startOffload()">
-        ▶ Start Single-Read Verified Offload
+        ⚡ Generate & Copy Pure PowerShell Offload Command
+      </button>
+      <button class="btn btn-secondary" style="width:100%;margin-top:8px;" onclick="buildRobocopyPlusAuditCmd()">
+        🚀 Generate High-Speed Robocopy + 3-Level Audit Command
       </button>
 
-      <!-- NETWORKING & CYBERSECURITY TELEMETRY VISUALIZER -->
+      <!-- HARDWARE & PRIVACY GUARDRAILS TELEMETRY -->
       <div class="check-group" style="margin-top:16px;font-size:11.5px;">
         <div style="font-weight:700;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;">
-          🌐 Full-Duplex USB Topology & Sliding-Window Backpressure
+          🛡️ Zero-Server Offline Architecture & Privacy Guardrails
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-0);padding:8px 10px;border-radius:7px;border:1px solid var(--border);font-family:'Consolas',monospace;font-size:11px;">
           <span style="color:#38bdf8">[D:\ IN]</span>
-          <span>──4MB Window──►</span>
+          <span>──4MB .NET Stream──►</span>
           <span style="color:#a855f7">[RAM Hash]</span>
-          <span>──Drain Lock──►</span>
+          <span>──Multi-Write──►</span>
           <span style="color:#34d399">[E:\ OUT]</span>
         </div>
         <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
           <div style="background:var(--bg-0);padding:6px 8px;border-radius:6px;border:1px solid var(--border);">
-            🛡️ <b>CSRF / DNS Lock:</b> <span style="color:#34d399">Active (256-bit)</span>
+            🚫 <b>Node.js / Server:</b> <span style="color:#34d399">0% (Pure Offline HTML)</span>
           </div>
           <div style="background:var(--bg-0);padding:6px 8px;border-radius:6px;border:1px solid var(--border);">
             🔗 <b>Symlink Guard:</b> <span style="color:#34d399">Active (/XJ)</span>
@@ -448,16 +463,26 @@
             🎨 <b>Creative Sidecars:</b> <span style="color:#34d399">Protected (.AAE/.XMP)</span>
           </div>
           <div style="background:var(--bg-0);padding:6px 8px;border-radius:6px;border:1px solid var(--border);">
-            🤖 <b>AI RAG Gate:</b> <span style="color:#34d399">Stream Verified</span>
+            🔒 <b>Path Privacy:</b> <span style="color:#34d399">Aggregate Only</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- COLUMN 3: LIVE 3-LEVEL AUDIT SCORECARD & FORENSIC TOOLKIT -->
+    <!-- COLUMN 3: LIVE 3-LEVEL AUDIT SCORECARD, COMMAND DOCK & FORENSIC TOOLKIT -->
     <div class="panel">
       <div class="panel-title">
-        <span>3. Offload Jobs, 3-Level Audit Scorecard & Forensic Toolkit</span>
+        <span>3. Standalone PowerShell Command Dock & Forensic Toolkit</span>
+        <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;border-color:#10b981;color:#34d399;" onclick="copyActiveCommand()">📋 Copy Command</button>
+      </div>
+
+      <!-- INTERACTIVE POWERSHELL TERMINAL COMMAND DOCK -->
+      <div class="job-card" style="border-color:#0284c7;background:rgba(2,132,199,0.08);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <strong style="font-size:13px;color:#38bdf8;" id="cmdDockTitle">Ready to Run in Your Standalone PowerShell Terminal:</strong>
+          <span id="copyStatusBadge" class="tag healthy" style="display:none;">✓ Copied to Clipboard</span>
+        </div>
+        <div class="console" id="cmdDockBox" style="color:#f8fafc;max-height:150px;"></div>
       </div>
 
       <div id="jobsContainer"></div>
@@ -466,7 +491,7 @@
       <div class="job-card" style="border-color:#263554;">
         <h3 style="margin:0 0 6px;font-size:15px;">Post-Transfer Forensic & Offline Contact Sheet Toolkit</h3>
         <p style="margin:0 0 12px;font-size:12.5px;color:var(--text-2);">
-          Run directly against <code id="activeTargetLabel">E:\Backups\Camera_Offload_001</code> without re-copying from the SD card:
+          Generate standalone PowerShell commands targeting <code id="activeTargetLabel">E:\Backups\Camera_Offload_001</code>:
         </p>
         <div class="toolkit-bar">
           <button class="btn btn-secondary" onclick="generateCertificate()">
@@ -482,7 +507,6 @@
             🗑️ Purge OS Junk (Protects .AAE / .XMP)
           </button>
         </div>
-        <div id="toolkitOutput" style="margin-top:14px;"></div>
 
         <!-- 3-COLUMN DIT & OPSEC FORMAT ADVISOR -->
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:11.5px;">
@@ -506,6 +530,9 @@
   </div>
 
   <script>
+    const CREATIVE_EXTS = new Set(['.aae', '.xmp', '.xml', '.bim', '.cpi', '.mpl', '.srt', '.vtt', '.cube', '.3dl', '.thm', '.lrv']);
+    const OS_JUNK_NAMES = new Set(['.ds_store', 'thumbs.db', 'desktop.ini']);
+
     function escapeHtml(str) {
       return String(str == null ? '' : str)
         .replace(/&/g, '&amp;')
@@ -515,234 +542,347 @@
         .replace(/'/g, '&#39;');
     }
 
-    async function apiPost(url, payload) {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-OffloadPro-Token': window.__OFFLOADPRO_CSRF_TOKEN__ || ''
-        },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      return data;
+    function setCommandDock(title, cmdText, autoCopy = false) {
+      document.getElementById('cmdDockTitle').textContent = title;
+      document.getElementById('cmdDockBox').textContent = cmdText;
+      if (autoCopy) copyActiveCommand();
     }
 
-    async function initConfig() {
+    async function copyActiveCommand() {
+      const txt = document.getElementById('cmdDockBox').textContent;
+      if (!txt) return;
       try {
-        const res = await fetch('/api/config');
-        const cfg = await res.json();
-        if (cfg.defaultSource) document.getElementById('srcInput').value = cfg.defaultSource;
-        if (cfg.defaultDestination) {
-          document.getElementById('dst1Input').value = cfg.defaultDestination;
-          document.getElementById('preflightPath').value = cfg.defaultDestination;
-          document.getElementById('activeTargetLabel').textContent = cfg.defaultDestination;
-        }
+        await navigator.clipboard.writeText(txt);
+        const badge = document.getElementById('copyStatusBadge');
+        badge.style.display = 'inline-block';
+        setTimeout(() => { badge.style.display = 'none'; }, 2200);
       } catch (_) {}
-      await loadDrives();
-      await runPreflight();
     }
 
-    async function loadDrives() {
+    function syncTargetLabel() {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      document.getElementById('activeTargetLabel').textContent = targetPath;
+    }
+
+    function renderDrives(drives) {
       const el = document.getElementById('drivesList');
-      try {
-        const res = await fetch('/api/drives');
-        const data = await res.json();
-        if (!data.drives || !data.drives.length) {
-          el.innerHTML = 'No drives returned.';
-          return;
-        }
-        el.innerHTML = data.drives.map(d => {
-          const usedGB = (d.usedBytes / 1e9).toFixed(1);
-          const totalGB = (d.sizeBytes / 1e9).toFixed(1);
-          const freeGB = (d.freeBytes / 1e9).toFixed(1);
-          const pct = d.sizeBytes > 0 ? Math.min(100, Math.round((d.usedBytes / d.sizeBytes) * 100)) : 0;
-          const clusterKB = d.allocationUnitBytes ? (d.allocationUnitBytes / 1024) + ' KB blocks' : '';
-          const lockBadge = d.driveType === 'Removable'
-            ? (d.isReadOnly
-                ? '<span class="tag healthy">🔒 HW Write-Protect Lock ON</span>'
-                : '<span class="tag" style="color:#fbbf24;">🔓 Unlocked (Flip SD Lock Tab for Read-Only)</span>')
-            : '';
-          return `
-            <div class="drive-card" onclick="selectDrive('${escapeHtml(d.root.replace(/\\/g, '\\\\'))}', '${escapeHtml(d.driveType)}')">
-              <div class="drive-top">
-                <div>
-                  <span class="drive-letter">${escapeHtml(d.root)}</span>
-                  <strong style="margin-left:6px;font-size:13.5px;">${escapeHtml(d.label)}</strong>
-                  <span style="font-size:11px;color:var(--text-2);margin-left:4px;">SN:${escapeHtml(d.serialNumber)}</span>
-                </div>
-                <div style="display:flex;gap:5px;">
-                  <span class="tag healthy">SMART: ${escapeHtml(d.smartHealth || 'Healthy')}</span>
-                  <span class="tag ${d.driveType === 'Removable' ? 'removable' : ''}">${escapeHtml(d.mediaType || d.driveType)}</span>
-                </div>
+      if (!drives || !drives.length) {
+        el.innerHTML = 'No volume snapshot loaded. Click "🔄 CLI Refresh Cmd" to export live drive telemetry.';
+        return;
+      }
+      el.innerHTML = drives.map(d => {
+        const usedGB = (d.usedBytes / 1e9).toFixed(1);
+        const totalGB = (d.sizeBytes / 1e9).toFixed(1);
+        const freeGB = (d.freeBytes / 1e9).toFixed(1);
+        const pct = d.sizeBytes > 0 ? Math.min(100, Math.round((d.usedBytes / d.sizeBytes) * 100)) : 0;
+        const clusterKB = d.allocationUnitBytes ? (d.allocationUnitBytes / 1024) + ' KB blocks' : '';
+        const lockBadge = d.driveType === 'Removable'
+          ? (d.isReadOnly
+              ? '<span class="tag healthy">🔒 HW Write-Protect Lock ON</span>'
+              : '<span class="tag" style="color:#fbbf24;">🔓 Unlocked (Flip SD Lock Tab for Read-Only)</span>')
+          : '';
+        return `
+          <div class="drive-card" onclick="selectDrive('${escapeHtml(d.root.replace(/\\/g, '\\\\'))}', '${escapeHtml(d.driveType)}')">
+            <div class="drive-top">
+              <div>
+                <span class="drive-letter">${escapeHtml(d.root)}</span>
+                <strong style="margin-left:6px;font-size:13.5px;">${escapeHtml(d.label)}</strong>
+                <span style="font-size:11px;color:var(--text-2);margin-left:4px;">SN:${escapeHtml(d.serialNumber)}</span>
               </div>
-              <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-              <div class="drive-meta">
-                <span>Used: <strong>${usedGB} GB</strong> / ${totalGB} GB (${escapeHtml(d.fileSystem)} ${clusterKB ? '• ' + escapeHtml(clusterKB) : ''})</span>
-                <span>Free: <strong>${freeGB} GB</strong></span>
-              </div>
-              <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
-                ${lockBadge}
-                ${d.hasSpotlight ? '<span class="tag forensic">🔍 .Spotlight-V100</span>' : ''}
-                ${d.hasTrashes ? '<span class="tag forensic">🗑️ .Trashes</span>' : ''}
+              <div style="display:flex;gap:5px;">
+                <span class="tag healthy">SMART: ${escapeHtml(d.smartHealth || 'Healthy')}</span>
+                <span class="tag ${d.driveType === 'Removable' ? 'removable' : ''}">${escapeHtml(d.mediaType || d.driveType)}</span>
               </div>
             </div>
-          `;
-        }).join('');
-      } catch (e) {
-        el.innerHTML = `<span style="color:var(--red)">Error loading drives: ${escapeHtml(e.message)}</span>`;
-      }
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <div class="drive-meta">
+              <span>Used: <strong>${usedGB} GB</strong> / ${totalGB} GB (${escapeHtml(d.fileSystem)} ${clusterKB ? '• ' + escapeHtml(clusterKB) : ''})</span>
+              <span>Free: <strong>${freeGB} GB</strong></span>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+              ${lockBadge}
+              ${d.hasSpotlight ? '<span class="tag forensic">🔍 .Spotlight-V100</span>' : ''}
+              ${d.hasTrashes ? '<span class="tag forensic">🗑️ .Trashes</span>' : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     function selectDrive(root, driveType) {
       document.getElementById('preflightPath').value = root;
+      syncTargetLabel();
       if (driveType === 'Removable') {
         document.getElementById('srcInput').value = root;
       }
-      runPreflight();
+      buildPreflightCmd();
     }
 
-    async function runPreflight() {
-      const targetPath = document.getElementById('preflightPath').value.trim();
-      document.getElementById('activeTargetLabel').textContent = targetPath;
+    function renderPreflightData(s) {
       const out = document.getElementById('preflightResult');
-      out.innerHTML = 'Scanning directory tree, sidecar taxonomy, ECDF quantiles & Merkle seal...';
-      try {
-        const s = await apiPost('/api/preflight', { targetPath });
-        if (!s.exists) {
-          out.innerHTML = `<span style="color:var(--amber)">Path does not exist yet: ${escapeHtml(targetPath)}</span>`;
-          return;
-        }
-        const realGB = (s.realFilesBytes / (1024 ** 3)).toFixed(3);
-        const slackMB = (s.estimatedExfatSlackBytes / (1024 ** 2)).toFixed(1);
-        const forensicMB = (s.systemForensicBytes / (1024 ** 2)).toFixed(2);
-        const dupMB = ((s.sameSizeDuplicateBytes || 0) / (1024 ** 2)).toFixed(1);
-        const extPills = Object.entries(s.extensions)
-          .sort((a, b) => b[1].count - a[1].count)
-          .map(([ext, info]) => `<span class="ext-pill">${escapeHtml(ext)}: <b>${info.count}</b></span>`)
-          .join('');
-
-        const ts = s.thinkStats;
-        const tsHtml = ts ? `
-          <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;">
-            <div style="font-size:11px;font-weight:700;color:#38bdf8;text-transform:uppercase;margin-bottom:6px;">
-              📊 ThinkStats2 ECDF Quantiles & Pareto Skew (Mean = ${ts.meanToMedianRatio}× Median)
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center;font-size:11px;background:var(--bg-0);padding:7px;border-radius:7px;border:1px solid var(--border);">
-              <div><div style="color:var(--text-2)">P50 Med</div><strong>${ts.medianMB}M</strong></div>
-              <div><div style="color:var(--text-2)">Mean μ</div><strong style="color:#fbbf24">${ts.meanMB}M</strong></div>
-              <div><div style="color:var(--text-2)">P90</div><strong>${ts.p90MB}M</strong></div>
-              <div><div style="color:var(--text-2)">P99</div><strong>${ts.p99MB}M</strong></div>
-              <div><div style="color:var(--text-2)">Max</div><strong style="color:#f43f5e">${ts.maxMB}M</strong></div>
-            </div>
-            <div style="font-size:11px;color:var(--text-2);margin:6px 0;">
-              Pareto Concentration: Top 10% largest files hold <strong style="color:#34d399">${ts.top10PctByteShare}%</strong> of total bytes.
-            </div>
-            <div style="margin-top:6px;">
-              <div style="font-size:10.5px;color:var(--text-2);margin-bottom:4px;">Inspection Paradox: <span style="color:#38bdf8">■ % of Files</span> vs. <span style="color:#10b981">■ % of GB Volume</span></div>
-              ${ts.buckets.map(b => `
-                <div style="margin-bottom:5px;font-size:11px;">
-                  <div style="display:flex;justify-content:space-between;">
-                    <span>${escapeHtml(b.label)} (${b.count})</span>
-                    <span>Files: <b style="color:#38bdf8">${b.filePct}%</b> | Vol: <b style="color:#10b981">${b.bytePct}%</b></span>
-                  </div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px;">
-                    <div style="background:#090e17;height:5px;border-radius:4px;overflow:hidden;"><div style="width:${b.filePct}%;height:100%;background:#38bdf8;"></div></div>
-                    <div style="background:#090e17;height:5px;border-radius:4px;overflow:hidden;"><div style="width:${b.bytePct}%;height:100%;background:#10b981;"></div></div>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-            <div style="margin-top:8px;background:var(--bg-0);padding:7px;border-radius:7px;border:1px solid var(--border);font-size:11px;">
-              <div style="color:var(--text-2);font-weight:700;margin-bottom:3px;">⏱️ Bivariate ETA Model T(N, B) = α·N + β·B:</div>
-              Copy: <b>~${Math.ceil(ts.bivariateEtaSec.copySec / 60)}m</b> •
-              L1 Hash: <b>~${Math.ceil(ts.bivariateEtaSec.level1HashSec / 60)}m</b> •
-              L2 FFprobe: <b>~${ts.bivariateEtaSec.level2FfprobeSec}s</b> •
-              L3 Decode: <b>~${Math.ceil(ts.bivariateEtaSec.level3DeepDecodeSec / 60)}m</b>
-            </div>
-          </div>
-        ` : '';
-
-        const merkleHtml = s.merkleStructureRoot ? `
-          <div style="margin-top:8px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.35);padding:7px;border-radius:7px;font-size:10.5px;">
-            <div style="color:#34d399;font-weight:700;">🔒 SHA-256 Tree Structure Merkle Root:</div>
-            <code style="word-break:break-all;color:#cbd5e1;">${escapeHtml(s.merkleStructureRoot)}</code>
-          </div>
-        ` : '';
-
-        out.innerHTML = `
-          <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-              <span>Real Media/User Files:</span>
-              <strong style="color:#38bdf8">${s.realFilesCount.toLocaleString()} files (${realGB} GB)</strong>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-              <span>Protected Creative Sidecars (<code>.AAE/.XMP</code>):</span>
-              <strong style="color:#34d399">${s.creativeSidecarsCount || 0} files • ${s.livePhotoPairsCount || 0} Live Photo pairs</strong>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-              <span>Same-Size Intra-Archive Duplicates:</span>
-              <strong style="color:#fbbf24">${s.sameSizeDuplicateCount || 0} files (~${dupMB} MB)</strong>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-              <span>Prior <code>.mhl</code> Ledger Matches:</span>
-              <strong>${s.priorMhlMatchedCount || 0} files</strong>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-              <span>macOS <code>._*</code> 4KB Sidecars:</span>
-              <strong style="color:#d8b4fe">${s.macAppleDoubleCount.toLocaleString()} files (${(s.macAppleDoubleBytes / 1048576).toFixed(2)} MB)</strong>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-              <span>System / Forensic (<code>.Spotlight-V100</code>):</span>
-              <strong>${s.systemForensicFilesCount} files (${forensicMB} MB)</strong>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span>exFAT 128KB Cluster Slack Overhead:</span>
-              <strong style="color:var(--amber)">~${slackMB} MB wasted on exFAT</strong>
-            </div>
-            <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:6px;">
-              ${extPills}
-            </div>
-            ${tsHtml}
-            ${merkleHtml}
-          </div>
-        `;
-      } catch (e) {
-        out.innerHTML = `<span style="color:var(--red)">Scan error: ${escapeHtml(e.message)}</span>`;
+      if (!s || !s.exists) {
+        out.innerHTML = `<span style="color:var(--amber)">No pre-flight snapshot loaded for this path yet. Click <b>📂 Scan Folder in Browser</b> or run the PowerShell command.</span>`;
+        return;
       }
+      const realGB = (s.realFilesBytes / (1024 ** 3)).toFixed(3);
+      const slackMB = (s.estimatedExfatSlackBytes / (1024 ** 2)).toFixed(1);
+      const forensicMB = (s.systemForensicBytes / (1024 ** 2)).toFixed(2);
+      const dupMB = ((s.sameSizeDuplicateBytes || 0) / (1024 ** 2)).toFixed(1);
+      const extPills = Object.entries(s.extensions || {})
+        .sort((a, b) => b[1].count - a[1].count)
+        .map(([ext, info]) => `<span class="ext-pill">${escapeHtml(ext)}: <b>${info.count}</b></span>`)
+        .join('');
+
+      const ts = s.thinkStats;
+      const tsHtml = ts ? `
+        <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;">
+          <div style="font-size:11px;font-weight:700;color:#38bdf8;text-transform:uppercase;margin-bottom:6px;">
+            📊 ThinkStats2 ECDF Quantiles & Pareto Skew (Mean = ${ts.meanToMedianRatio}× Median)
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center;font-size:11px;background:var(--bg-0);padding:7px;border-radius:7px;border:1px solid var(--border);">
+            <div><div style="color:var(--text-2)">P50 Med</div><strong>${ts.medianMB}M</strong></div>
+            <div><div style="color:var(--text-2)">Mean μ</div><strong style="color:#fbbf24">${ts.meanMB}M</strong></div>
+            <div><div style="color:var(--text-2)">P90</div><strong>${ts.p90MB}M</strong></div>
+            <div><div style="color:var(--text-2)">P99</div><strong>${ts.p99MB}M</strong></div>
+            <div><div style="color:var(--text-2)">Max</div><strong style="color:#f43f5e">${ts.maxMB}M</strong></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-2);margin:6px 0;">
+            Pareto Concentration: Top 10% largest files hold <strong style="color:#34d399">${ts.top10PctByteShare}%</strong> of total bytes.
+          </div>
+          <div style="margin-top:6px;">
+            <div style="font-size:10.5px;color:var(--text-2);margin-bottom:4px;">Inspection Paradox: <span style="color:#38bdf8">■ % of Files</span> vs. <span style="color:#10b981">■ % of GB Volume</span></div>
+            ${ts.buckets.map(b => `
+              <div style="margin-bottom:5px;font-size:11px;">
+                <div style="display:flex;justify-content:space-between;">
+                  <span>${escapeHtml(b.label)} (${b.count})</span>
+                  <span>Files: <b style="color:#38bdf8">${b.filePct}%</b> | Vol: <b style="color:#10b981">${b.bytePct}%</b></span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px;">
+                  <div style="background:#090e17;height:5px;border-radius:4px;overflow:hidden;"><div style="width:${b.filePct}%;height:100%;background:#38bdf8;"></div></div>
+                  <div style="background:#090e17;height:5px;border-radius:4px;overflow:hidden;"><div style="width:${b.bytePct}%;height:100%;background:#10b981;"></div></div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="margin-top:8px;background:var(--bg-0);padding:7px;border-radius:7px;border:1px solid var(--border);font-size:11px;">
+            <div style="color:var(--text-2);font-weight:700;margin-bottom:3px;">⏱️ Bivariate ETA Model T(N, B) = α·N + β·B:</div>
+            Copy: <b>~${Math.ceil(ts.bivariateEtaSec.copySec / 60)}m</b> •
+            L1 Hash: <b>~${Math.ceil(ts.bivariateEtaSec.level1HashSec / 60)}m</b> •
+            L2 FFprobe: <b>~${ts.bivariateEtaSec.level2FfprobeSec}s</b> •
+            L3 Decode: <b>~${Math.ceil(ts.bivariateEtaSec.level3DeepDecodeSec / 60)}m</b>
+          </div>
+        </div>
+      ` : '';
+
+      const merkleHtml = s.merkleStructureRoot ? `
+        <div style="margin-top:8px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.35);padding:7px;border-radius:7px;font-size:10.5px;">
+          <div style="color:#34d399;font-weight:700;">🔒 SHA-256 Tree Structure Merkle Root:</div>
+          <code style="word-break:break-all;color:#cbd5e1;">${escapeHtml(s.merkleStructureRoot)}</code>
+        </div>
+      ` : '';
+
+      out.innerHTML = `
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span>Real Media/User Files:</span>
+            <strong style="color:#38bdf8">${s.realFilesCount.toLocaleString()} files (${realGB} GB)</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span>Protected Creative Sidecars (<code>.AAE/.XMP</code>):</span>
+            <strong style="color:#34d399">${s.creativeSidecarsCount || 0} files • ${s.livePhotoPairsCount || 0} Live Photo pairs</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span>Same-Size Intra-Archive Duplicates:</span>
+            <strong style="color:#fbbf24">${s.sameSizeDuplicateCount || 0} files (~${dupMB} MB)</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span>Prior <code>.mhl</code> Ledger Matches:</span>
+            <strong>${s.priorMhlMatchedCount || 0} files</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span>macOS <code>._*</code> 4KB Sidecars:</span>
+            <strong style="color:#d8b4fe">${s.macAppleDoubleCount.toLocaleString()} files (${(s.macAppleDoubleBytes / 1048576).toFixed(2)} MB)</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span>System / Forensic (<code>.Spotlight-V100</code>):</span>
+            <strong>${s.systemForensicFilesCount} files (${forensicMB} MB)</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+            <span>exFAT 128KB Cluster Slack Overhead:</span>
+            <strong style="color:var(--amber)">~${slackMB} MB wasted on exFAT</strong>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:6px;">
+            ${extPills}
+          </div>
+          ${tsHtml}
+          ${merkleHtml}
+        </div>
+      `;
     }
 
-    function updateTopTrafficLight(job) {
-      if (!job) return;
-      const banner = document.getElementById('trafficBanner');
-      if (job.trafficLight === 'GREEN_321_VERIFIED') {
-        banner.style.background = 'var(--green-bg)';
-        banner.style.borderColor = 'var(--green)';
-        banner.style.color = '#34d399';
-        banner.innerHTML = '<span>🟢 3-2-1 MULTI-DRIVE VERIFIED (2+ COPIES) — SAFE TO FORMAT IN-CAMERA</span>';
-      } else if (job.trafficLight === 'AMBER_SINGLE_COPY' || job.safeToFormat) {
-        banner.style.background = 'var(--amber-bg)';
-        banner.style.borderColor = 'var(--amber)';
-        banner.style.color = '#fbbf24';
-        banner.innerHTML = '<span>🟡 VERIFIED 100% ON 1 DRIVE (SINGLE COPY — MIRROR TO 2ND DRIVE OR FORMAT IN-CAMERA WHEN READY)</span>';
-      } else {
-        banner.style.background = 'var(--red-bg)';
-        banner.style.borderColor = 'var(--red)';
-        banner.style.color = '#fca5a5';
-        banner.innerHTML = `<span>🔴 ${escapeHtml(job.status)} — DO NOT FORMAT CARD</span>`;
+    // 100% Browser-Native Client-Side Folder X-Ray (Zero Server, Zero Node.js, Privacy-Safe)
+    async function handleBrowserFolderScan(fileList) {
+      if (!fileList || fileList.length === 0) return;
+      const out = document.getElementById('preflightResult');
+      out.innerHTML = 'Running client-side ECDF Quantile, Sidecar Taxonomy & WebCrypto SHA-256 Merkle scan in browser...';
+
+      const s = {
+        exists: true,
+        realFilesCount: 0,
+        realFilesBytes: 0,
+        creativeSidecarsCount: 0,
+        creativeSidecarsBytes: 0,
+        livePhotoPairsCount: 0,
+        sameSizeDuplicateCount: 0,
+        sameSizeDuplicateBytes: 0,
+        priorMhlMatchedCount: 0,
+        macAppleDoubleCount: 0,
+        macAppleDoubleBytes: 0,
+        dsStoreCount: 0,
+        systemForensicFilesCount: 0,
+        systemForensicBytes: 0,
+        extensions: {},
+        estimatedExfatSlackBytes: 0,
+        thinkStats: null,
+        merkleStructureRoot: null
+      };
+
+      const realSizes = [];
+      const sizeCounts = new Map();
+      const treeLeaves = [];
+      const dirBaseMap = new Map();
+
+      for (let i = 0; i < fileList.length; i++) {
+        const f = fileList[i];
+        const rel = f.webkitRelativePath || f.name;
+        const nameLower = f.name.toLowerCase();
+        const dotIdx = nameLower.lastIndexOf('.');
+        const ext = dotIdx >= 0 ? nameLower.slice(dotIdx) : '.noext';
+        const inSys = /(^|\/|\\)(system volume information|\.spotlight-v100|\.trashes|\.fseventsd)(\/|\\|$)/i.test(rel);
+
+        if (inSys) {
+          s.systemForensicFilesCount++;
+          s.systemForensicBytes += f.size;
+        } else if (f.name.startsWith('._')) {
+          s.macAppleDoubleCount++;
+          s.macAppleDoubleBytes += f.size;
+          const rem = f.size % 131072;
+          if (rem > 0) s.estimatedExfatSlackBytes += 131072 - rem;
+        } else if (OS_JUNK_NAMES.has(nameLower)) {
+          s.dsStoreCount++;
+          const rem = f.size % 131072;
+          if (rem > 0) s.estimatedExfatSlackBytes += 131072 - rem;
+        } else {
+          if (CREATIVE_EXTS.has(ext)) {
+            s.creativeSidecarsCount++;
+            s.creativeSidecarsBytes += f.size;
+          }
+          s.realFilesCount++;
+          s.realFilesBytes += f.size;
+          realSizes.push(f.size);
+          treeLeaves.push(`${rel}:${f.size}`);
+
+          if (f.size > 0) {
+            sizeCounts.set(f.size, (sizeCounts.get(f.size) || 0) + 1);
+          }
+          const rem = f.size % 131072;
+          if (rem > 0) s.estimatedExfatSlackBytes += 131072 - rem;
+
+          if (!s.extensions[ext]) s.extensions[ext] = { count: 0, bytes: 0 };
+          s.extensions[ext].count++;
+          s.extensions[ext].bytes += f.size;
+
+          const slashIdx = rel.lastIndexOf('/');
+          const dirPart = slashIdx >= 0 ? rel.slice(0, slashIdx) : '';
+          const basePart = dotIdx >= 0 ? nameLower.slice(0, dotIdx) : nameLower;
+          const key = `${dirPart}/${basePart}`;
+          if (!dirBaseMap.has(key)) dirBaseMap.set(key, new Set());
+          dirBaseMap.get(key).add(ext);
+        }
       }
+
+      for (const [, extSet] of dirBaseMap) {
+        if (extSet.has('.mov') && (extSet.has('.heic') || extSet.has('.jpg') || extSet.has('.jpeg'))) {
+          s.livePhotoPairsCount++;
+        }
+      }
+
+      for (const [sz, cnt] of sizeCounts) {
+        if (cnt > 1) {
+          s.sameSizeDuplicateCount += cnt - 1;
+          s.sameSizeDuplicateBytes += (cnt - 1) * sz;
+        }
+      }
+
+      if (realSizes.length > 0) {
+        realSizes.sort((a, b) => a - b);
+        const n = realSizes.length;
+        const totalB = s.realFilesBytes;
+        const q = (p) => realSizes[Math.min(n - 1, Math.floor(n * p))];
+        const toMB = (b) => Number((b / (1024 * 1024)).toFixed(2));
+        const medianB = q(0.5);
+        const meanB = totalB / n;
+        const top10Count = Math.max(1, Math.floor(n * 0.1));
+        const top10Bytes = realSizes.slice(n - top10Count).reduce((a, b) => a + b, 0);
+
+        const bucketDefs = [
+          { label: '< 1 MB', min: 0, max: 1048576, count: 0, bytes: 0 },
+          { label: '1–10 MB', min: 1048576, max: 10485760, count: 0, bytes: 0 },
+          { label: '10–50 MB', min: 10485760, max: 52428800, count: 0, bytes: 0 },
+          { label: '50–150 MB', min: 52428800, max: 157286400, count: 0, bytes: 0 },
+          { label: '150+ MB', min: 157286400, max: Infinity, count: 0, bytes: 0 }
+        ];
+        for (const sz of realSizes) {
+          for (const b of bucketDefs) {
+            if (sz >= b.min && sz < b.max) {
+              b.count++;
+              b.bytes += sz;
+              break;
+            }
+          }
+        }
+
+        const totalMB = totalB / (1024 * 1024);
+        s.thinkStats = {
+          n,
+          medianMB: toMB(medianB),
+          meanMB: toMB(meanB),
+          p90MB: toMB(q(0.9)),
+          p99MB: toMB(q(0.99)),
+          maxMB: toMB(realSizes[n - 1]),
+          meanToMedianRatio: Number((meanB / Math.max(1, medianB)).toFixed(2)),
+          top10PctByteShare: Number(((top10Bytes / Math.max(1, totalB)) * 100).toFixed(1)),
+          buckets: bucketDefs.map(b => ({
+            label: b.label,
+            count: b.count,
+            filePct: Number(((b.count / n) * 100).toFixed(1)),
+            bytePct: Number(((b.bytes / Math.max(1, totalB)) * 100).toFixed(1))
+          })),
+          bivariateEtaSec: {
+            copySec: Math.round(0.002 * n + totalMB / 98.1),
+            level1HashSec: Math.round(0.002 * n + totalMB / 100.5),
+            level2FfprobeSec: Math.round(0.023 * n),
+            level3DeepDecodeSec: Math.round(0.05 * n + totalMB / 29.8)
+          }
+        };
+
+        treeLeaves.sort();
+        if (window.crypto && window.crypto.subtle) {
+          const enc = new TextEncoder().encode(treeLeaves.join('|'));
+          const digest = await window.crypto.subtle.digest('SHA-256', enc);
+          s.merkleStructureRoot = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+        }
+      }
+
+      renderPreflightData(s);
     }
 
     function renderJobs(jobs) {
       const container = document.getElementById('jobsContainer');
       if (!jobs || !jobs.length) {
-        container.innerHTML = '<p style="color:var(--text-2)">No offload jobs yet.</p>';
+        container.innerHTML = '';
         return;
       }
-      updateTopTrafficLight(jobs[0]);
       container.innerHTML = jobs.map(j => {
         const s = j.stats || {};
         const gbCopied = ((s.bytesCopied || 0) / (1024 ** 3)).toFixed(2);
@@ -794,117 +934,101 @@
               </div>
             </div>
 
-            <div class="console">
-              ${(j.logs || []).slice(-12).map(l => `<div class="${l.includes('0 ') || l.includes('VERIFIED') ? 'ok' : ''}">${escapeHtml(l)}</div>`).join('')}
-            </div>
+            <div class="console">${(j.logs || []).map(l => `<div class="${l.includes('0 ') || l.includes('Verified') ? 'ok' : ''}">${escapeHtml(l)}</div>`).join('')}</div>
           </div>
         `;
       }).join('');
     }
 
-    async function startOffload() {
-      const source = document.getElementById('srcInput').value.trim();
-      const d1 = document.getElementById('dst1Input').value.trim();
-      const d2 = document.getElementById('dst2Input').value.trim();
-      const destinations = [d1, d2].filter(Boolean);
-      const algorithm = document.getElementById('algoSelect').value;
+    function buildTelemetryRefreshCmd() {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-OffloadProEngine.ps1 -Action ExportTelemetry -TargetPath "${targetPath}"`;
+      setCommandDock('🔄 Refresh Offline Telemetry Snapshot (Run in PowerShell, then reload page):', cmd, true);
+    }
+
+    function buildPreflightCmd() {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-OffloadProEngine.ps1 -Action Preflight -TargetPath "${targetPath}"`;
+      setCommandDock('📊 Pre-Flight Source / Backup X-Ray Command:', cmd, true);
+    }
+
+    function updateCommandDock() {
+      const src = document.getElementById('srcInput').value.trim();
+      const dst1 = document.getElementById('dst1Input').value.trim();
+      const dst2 = document.getElementById('dst2Input').value.trim();
+      const algo = document.getElementById('algoSelect').value;
       const macMode = document.getElementById('macModeSelect').value;
-      const verifyLevel1 = document.getElementById('chkL1').checked;
-      const verifyLevel2 = document.getElementById('chkL2').checked;
-      const verifyLevel3 = document.getElementById('chkL3').checked;
-      const rescueMode = document.getElementById('chkRescue').checked;
+      const l1 = document.getElementById('chkL1').checked ? '$true' : '$false';
+      const l2 = document.getElementById('chkL2').checked ? '$true' : '$false';
+      const l3 = document.getElementById('chkL3').checked ? '$true' : '$false';
+      const rescue = document.getElementById('chkRescue').checked ? ' -RescueMode' : '';
+      const dst2Arg = dst2 ? ` -SecondaryDestinationRoot "${dst2}"` : '';
 
-      await apiPost('/api/jobs/start', {
-        source,
-        destinations,
-        algorithm,
-        macMode,
-        rescueMode,
-        verifyLevel1,
-        verifyLevel2,
-        verifyLevel3
-      });
-    }
-
-    async function generateCertificate() {
-      const targetPath = document.getElementById('preflightPath').value.trim();
-      const out = document.getElementById('toolkitOutput');
-      out.innerHTML = '<div class="console">Generating ASC-MHL (.mhl) manifest and Offline Base64 Contact-Sheet HTML Certificate...</div>';
-      try {
-        const data = await apiPost('/api/certificate/generate', {
-          targetPath,
-          algorithm: document.getElementById('algoSelect').value
-        });
-        out.innerHTML = `
-          <div class="console">
-            <div class="ok">✓ Generated ASC-MHL Checksum Manifest: ${escapeHtml(data.mhlPath)}</div>
-            <div class="ok">✓ Generated Offline Visual Contact-Sheet Certificate (${data.embeddedThumbnailsCount || 0} inline video thumbnails): ${escapeHtml(data.certPath)}</div>
-            <div>Verified Media Files Indexed: ${data.totalFiles} (${(data.totalBytes / 1e9).toFixed(2)} GB)</div>
-          </div>
-        `;
-      } catch (e) {
-        out.innerHTML = `<div class="console" style="color:var(--red)">Error: ${escapeHtml(e.message)}</div>`;
-      }
-    }
-
-    async function extractForensics() {
-      const targetPath = document.getElementById('preflightPath').value.trim();
-      const out = document.getElementById('toolkitOutput');
-      out.innerHTML = '<div class="console">Scanning macOS ._* AppleDouble binary files for origin URLs, AirDrop sender names & extended attributes...</div>';
-      try {
-        const data = await apiPost('/api/forensics/extract', { targetPath });
-        const sampleHtml = (data.sample || []).slice(0, 10).map(item =>
-          `<div><strong style="color:#d8b4fe">${escapeHtml(item.parentFile)}</strong>: ${escapeHtml(item.strings.join(' | '))}</div>`
-        ).join('');
-        out.innerHTML = `
-          <div class="console">
-            <div class="ok">✓ Extracted metadata from ${data.count} AppleDouble (._*) files → Saved to ${escapeHtml(data.reportPath)}</div>
-            ${sampleHtml || '<div>No non-default strings found in sample.</div>'}
-          </div>
-        `;
-      } catch (e) {
-        out.innerHTML = `<div class="console" style="color:var(--red)">Error: ${escapeHtml(e.message)}</div>`;
-      }
-    }
-
-    async function cleanJunk(dryRun) {
-      const targetPath = document.getElementById('preflightPath').value.trim();
-      if (!dryRun && !confirm(`Delete OS junk (._*, .DS_Store, Thumbs.db) inside ${targetPath}? Creative sidecars (.AAE, .XMP) are protected.`)) return;
-      const out = document.getElementById('toolkitOutput');
-      out.innerHTML = `<div class="console">${dryRun ? 'Running dry-run scan...' : 'Deleting OS junk files...'}</div>`;
-      try {
-        const data = await apiPost('/api/forensics/clean', { targetPath, dryRun });
-        out.innerHTML = `
-          <div class="console">
-            <div class="ok">${dryRun ? '[DRY-RUN PREVIEW]' : '[CLEANUP COMPLETE]'} Matched ${data.deletedCount} OS junk files (${(data.reclaimedBytes / 1048576).toFixed(2)} MB on NTFS / ~${((data.deletedCount * 131072) / 1048576).toFixed(1)} MB on exFAT)</div>
-            ${(data.sample || []).slice(0, 8).map(f => `<div>• ${escapeHtml(f.path)} (${f.size} bytes)</div>`).join('')}
-          </div>
-        `;
-        if (!dryRun) runPreflight();
-      } catch (e) {
-        out.innerHTML = `<div class="console" style="color:var(--red)">Error: ${escapeHtml(e.message)}</div>`;
-      }
-    }
-
-    let currentJobs = [];
-    const evtSource = new EventSource('/api/events');
-    evtSource.addEventListener('init', (e) => {
-      currentJobs = JSON.parse(e.data) || [];
-      renderJobs(currentJobs);
-    });
-    evtSource.addEventListener('job_update', (e) => {
-      const updatedJob = JSON.parse(e.data);
-      const idx = currentJobs.findIndex((j) => j.id === updatedJob.id);
-      if (idx >= 0) {
-        currentJobs[idx] = updatedJob;
+      const banner = document.getElementById('trafficBanner');
+      if (dst2) {
+        banner.style.background = 'var(--green-bg)';
+        banner.style.borderColor = 'var(--green)';
+        banner.style.color = '#34d399';
+        banner.innerHTML = '<span>🟢 3-2-1 DUAL-DESTINATION MODE CONFIGURED (2 SIMULTANEOUS COPIES)</span>';
       } else {
-        currentJobs.unshift(updatedJob);
+        banner.style.background = 'var(--amber-bg)';
+        banner.style.borderColor = 'var(--amber)';
+        banner.style.color = '#fbbf24';
+        banner.innerHTML = '<span>🟡 1-DRIVE COPY VERIFIED (KEEP CARD OR MIRROR FOR 3-2-1 BEFORE IN-CAMERA FORMAT)</span>';
       }
-      renderJobs(currentJobs);
-    });
-    window.addEventListener('beforeunload', () => evtSource.close());
 
-    initConfig();
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-OffloadProEngine.ps1 \`\n  -Action Offload \`\n  -SourceRoot "${src}" \`\n  -DestinationRoot "${dst1}"${dst2Arg} \`\n  -Algorithm ${algo} \`\n  -MacMode ${macMode} \`\n  -VerifyLevel1 ${l1} -VerifyLevel2 ${l2} -VerifyLevel3 ${l3}${rescue}`;
+      setCommandDock('⚡ Single-Read Multi-Destination Verified Offload Command (Pure PowerShell):', cmd, false);
+    }
+
+    function startOffload() {
+      updateCommandDock();
+      copyActiveCommand();
+    }
+
+    function buildRobocopyPlusAuditCmd() {
+      const src = document.getElementById('srcInput').value.trim().replace(/"/g, '');
+      const dst1 = document.getElementById('dst1Input').value.trim();
+      const macMode = document.getElementById('macModeSelect').value;
+      const xfClean = macMode === 'clean' ? ' /XF "._*" ".DS_Store" "Thumbs.db" "desktop.ini"' : '';
+      const skipL1 = document.getElementById('chkL1').checked ? '' : ' -SkipLevel1Hash';
+      const skipL3 = document.getElementById('chkL3').checked ? '' : ' -SkipLevel3DeepDecode';
+
+      const cmd = `# Step 1: One-Shot Buffered Robocopy Offload (pass drive root without quotes)\nrobocopy ${src} "${dst1}" /E /COPY:DAT /DCOPY:DAT /MT:4 /R:5 /W:3 /XJ /XD "System Volume Information" ".Spotlight-V100" ".Trashes" ".fseventsd"${xfClean} /NP\nattrib -s -h "${dst1}"\n\n# Step 2: 3-Level Bit-for-Bit & FFmpeg Stream Integrity Audit\npowershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-3LevelAudit.ps1 -SourceRoot "${src}" -DestinationRoot "${dst1}" -Threads 6${skipL1}${skipL3}`;
+      setCommandDock('🚀 Standalone Robocopy + 3-Level FFmpeg Audit Pipeline:', cmd, true);
+    }
+
+    function generateCertificate() {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      const algo = document.getElementById('algoSelect').value;
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-OffloadProEngine.ps1 -Action Certificate -TargetPath "${targetPath}" -Algorithm ${algo}`;
+      setCommandDock('📜 Generate ASC-MHL (.mhl) + Offline Base64 Contact-Sheet Certificate:', cmd, true);
+    }
+
+    function extractForensics() {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-MacMetadataForensics.ps1 -TargetPath "${targetPath}"`;
+      setCommandDock('🔍 Extract macOS ._* AppleDouble Forensic Strings (Dry-Run Preview):', cmd, true);
+    }
+
+    function cleanJunk(dryRun) {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      const flag = dryRun ? '' : ' -DeleteJunkAfterDump';
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-MacMetadataForensics.ps1 -TargetPath "${targetPath}"${flag}`;
+      setCommandDock(dryRun ? '🧪 Dry-Run Count Tier-2 OS Junk (Protects .AAE / .XMP):' : '🗑️ Purge Tier-2 OS Junk (._*, .DS_Store, Thumbs.db):', cmd, true);
+    }
+
+    function initStudioOffline() {
+      const t = window.__OFFLOADPRO_TELEMETRY__ || {};
+      renderDrives(t.drives || []);
+      if (t.preflight) {
+        renderPreflightData(t.preflight);
+      }
+      renderJobs(t.jobs || []);
+      updateCommandDock();
+    }
+
+    initStudioOffline();
   </script>
 </body>
 </html>

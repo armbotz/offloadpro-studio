@@ -40,7 +40,7 @@ $files = @(Get-ChildItem -Path $DestinationRoot -File -Recurse -Force -ErrorActi
     })
 
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "OffloadPro 3-Level Audit — Target: $DestinationRoot ($($files.Count) files)" -ForegroundColor Cyan
+Write-Host "OffloadPro 3-Level Audit — Total Target Files: $($files.Count)" -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 
 # --- LEVEL 2: FFprobe Container & Header Check ---
@@ -96,7 +96,7 @@ Write-Host "[LEVEL 2 COMPLETE] $([math]::Round($sw2.Elapsed.TotalSeconds, 1))s |
 
 # --- LEVEL 1: Bit-for-Bit MD5 Check (Source vs Destination) ---
 if (-not $SkipLevel1Hash -and (Test-Path -LiteralPath $SourceRoot)) {
-    Write-Host "`n[LEVEL 1] Running Concurrent MD5 Bit-for-Bit Hash Check ($SourceRoot vs $DestinationRoot)..." -ForegroundColor Yellow
+    Write-Host "`n[LEVEL 1] Running Concurrent MD5 Bit-for-Bit Hash Check (Source vs Destination)..." -ForegroundColor Yellow
     $sw1 = [System.Diagnostics.Stopwatch]::StartNew()
     $hashPool = [runspacefactory]::CreateRunspacePool(1, 2)
     $hashPool.Open()
