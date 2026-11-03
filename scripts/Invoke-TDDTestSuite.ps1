@@ -1,10 +1,11 @@
 <#
 .SYNOPSIS
-    OffloadPro DIT Studio v3.3 - Standalone Test-Driven Development (TDD) & Mutation Test Runner.
+    OffloadPro DIT Studio v4.0 - Standalone Test-Driven Development (TDD) & Mutation Test Runner.
 .DESCRIPTION
-    Executes 7 deterministic Red/Green boundary, mutation, taxonomy, collision, organizer, and privacy
+    Executes 10 deterministic Red/Green boundary, mutation, taxonomy, collision, organizer,
+    crash-resume checkpoint, two-stage deduplication, NLE (.ALE/.CSV) deliverables, and privacy
     invariant tests in an isolated temporary directory without touching any real drives.
-    Returns ExitCode 0 when all 7 tests pass, or ExitCode 1 on any assertion failure.
+    Returns ExitCode 0 when all 10 tests pass, or ExitCode 1 on any assertion failure.
 #>
 $ErrorActionPreference = 'Stop'
 $ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -17,6 +18,7 @@ $MockSd     = Join-Path $TempRoot 'MockSD'
 $DcimDir    = Join-Path $MockSd 'DCIM\100MEDIA'
 $BackupDir  = Join-Path $TempRoot 'Backups\Roll_A001'
 $OrgDir     = Join-Path $TempRoot 'Organized_Vault'
+$DedupeDir  = Join-Path $TempRoot 'Dedupe_Vault'
 
 $Passed = 0
 $Failed = 0
@@ -33,7 +35,7 @@ function Assert-Condition {
 }
 
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "OffloadPro v3.3 TDD & Mutation Test Suite (Red/Green/Refactor)" -ForegroundColor Cyan
+Write-Host "OffloadPro v4.0 TDD & Mutation Test Suite (10 Red/Green Tests)" -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 
 try {
@@ -67,8 +69,11 @@ try {
     [System.IO.File]::WriteAllText($aaePath, "<plist>Protected iOS Edit</plist>")
     [System.IO.File]::SetLastWriteTimeUtc($aaePath, $laterEditDate)
     [System.IO.File]::WriteAllText($orphanPath, "<x:xmpmeta>Orphan Sidecar</x:xmpmeta>")
+    [System.IO.File]::SetLastWriteTimeUtc($orphanPath, $captureDate)
     [System.IO.File]::WriteAllBytes($appleDoublePath, ([byte[]](0..63)))
+    [System.IO.File]::SetLastWriteTimeUtc($appleDoublePath, $captureDate)
     [System.IO.File]::WriteAllBytes($dsStorePath, ([byte[]](0..31)))
+    [System.IO.File]::SetLastWriteTimeUtc($dsStorePath, $captureDate)
 
     # --- TEST 1: Pre-Flight Sequence Gap, Orphan Sidecar & Merkle Determinism ---
     $preflightOut = (& $EnginePath -Action Preflight -TargetPath $MockSd *>&1 | ForEach-Object { "$_" }) -join "`n"
@@ -111,8 +116,9 @@ try {
         -TestName "Test 4: Bit-Flip Mutation Test catches 1-bit corruption (same file size) & returns ExitCode 1" `
         -FailureDetail "Expected ExitCode 1 on bit-flip mutation, got $bitrotExitCode ($verifyRedOut)"
 
-    # Restore clean file bytes
+    # Restore clean file bytes & capture timestamp
     [System.IO.File]::WriteAllBytes($targetPdf, $origBytes)
+    [System.IO.File]::SetLastWriteTimeUtc($targetPdf, $captureDate)
 
     # --- TEST 5: Roll-Name Collision Guard Test ---
     [System.IO.File]::WriteAllText($targetPdf, "%PDF-1.7`nDIFFERENT_ROLL_COLLISION_SIZE_PAYLOAD_LONGER")
@@ -129,6 +135,7 @@ try {
         -TestName "Test 5: Roll-Name Collision Guard blocks accidental overwrite of different-sized roll clip" `
         -FailureDetail "Collision guard did not throw expected exception."
     [System.IO.File]::WriteAllBytes($targetPdf, $origBytes)
+    [System.IO.File]::SetLastWriteTimeUtc($targetPdf, $captureDate)
 
     # --- TEST 6: Non-Destructive Sidecar-Glued Date Organizer (-Action OrganizeByDate) ---
     [void](& $EnginePath -Action OrganizeByDate -SourceRoot $BackupDir -DestinationRoot $OrgDir *>&1)
@@ -148,6 +155,36 @@ try {
         -Condition (-not $leakedPii) `
         -TestName "Test 7: Zero-PII stdout Privacy Invariant (0 personal filenames printed to console)" `
         -FailureDetail "Personal filename detected in stdout!"
+
+    # --- TEST 8: OS Professor Crash-Resumable Checkpoint Invariant ---
+    $resumeOut = (& $EnginePath -Action Offload -SourceRoot $MockSd -DestinationRoot $BackupDir -Algorithm SHA256 -MacMode forensic_split -VerifyLevel1 $true -VerifyLevel2 $false -VerifyLevel3 $false -Threads 2 *>&1 | ForEach-Object { "$_" }) -join "`n"
+    Assert-Condition `
+        -Condition ($resumeOut -match '9/9 files \(Resumed:\s*9\)' -and $resumeOut -match 'Hash Mismatches:\s*0') `
+        -TestName "Test 8: Crash-Resumable Checkpoint resumes all 9 intact files with 0 re-copies & 0 mismatches" `
+        -FailureDetail "Unexpected resume output: $resumeOut"
+
+    # --- TEST 9: Systems Design Professor Two-Stage Deduplication Engine (-Action DedupeScan) ---
+    [void][System.IO.Directory]::CreateDirectory($DedupeDir)
+    [System.IO.File]::WriteAllText((Join-Path $DedupeDir 'Clip_Original.mov'), "EXACT_SAME_32_BYTE_PAYLOAD_AAAA!")
+    [System.IO.File]::WriteAllText((Join-Path $DedupeDir 'Clip_TrueDupe.mov'), "EXACT_SAME_32_BYTE_PAYLOAD_AAAA!")
+    [System.IO.File]::WriteAllText((Join-Path $DedupeDir 'Clip_SameSizeDiffContent.mov'), "EXACT_SAME_32_BYTE_PAYLOAD_BBBB!")
+    [System.IO.File]::WriteAllText((Join-Path $DedupeDir 'Clip_UniqueSize.mov'), "UNIQUE_SIZE_PAYLOAD")
+
+    $dedupeOut = (& $EnginePath -Action DedupeScan -TargetPath $DedupeDir -Algorithm SHA256 -Threads 2 *>&1 | ForEach-Object { "$_" }) -join "`n"
+    Assert-Condition `
+        -Condition ($dedupeOut -match 'Same-Size Candidates Hashed:\s*3' -and $dedupeOut -match 'True Hash Duplicates:\s*1') `
+        -TestName "Test 9: Two-Stage DedupeScan filters unique sizes in O(1) & distinguishes true duplicate from same-size collision" `
+        -FailureDetail "Unexpected DedupeScan output: $dedupeOut"
+
+    # --- TEST 10: Lead DIT NLE Post-House Deliverables (.ALE & .CSV) ---
+    $aleFile = Join-Path (Split-Path -Parent $BackupDir) 'Roll_A001.ale'
+    $csvFile = Join-Path (Split-Path -Parent $BackupDir) 'Roll_A001_PostHouse_Manifest.csv'
+    $aleExists = (Test-Path -LiteralPath $aleFile) -and ((Get-Content -LiteralPath $aleFile -Raw) -match 'FPS\s+24' -and (Get-Content -LiteralPath $aleFile -Raw) -match 'Roll_A001')
+    $csvExists = (Test-Path -LiteralPath $csvFile) -and (@(Get-Content -LiteralPath $csvFile).Count -eq 8)
+    Assert-Condition `
+        -Condition ($aleExists -and $csvExists) `
+        -TestName "Test 10: NLE Post-House Deliverables generates valid Avid/Resolve .ALE & 7-clip .CSV manifest" `
+        -FailureDetail "aleExists=$aleExists, csvExists=$csvExists"
 
 } finally {
     Remove-Item -LiteralPath $TempRoot -Recurse -Force -ErrorAction SilentlyContinue

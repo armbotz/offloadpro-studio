@@ -335,8 +335,8 @@
     <div class="brand">
       <div class="logo-badge">OP</div>
       <div>
-        <h1>OffloadPro DIT Studio v3.1 — Lead DIT Edition</h1>
-        <span>100% Full-Roll MHL Sealer • 5-Second Source/Backup Merkle Parity Diff • Free-Space & Roll Collision Gates • Zero Node.js</span>
+        <h1>OffloadPro DIT Studio v4.0 — Upper-Echelon On-Set & Scalability Edition</h1>
+        <span>SequentialScan + FlushFileBuffers • Crash-Resume Checkpoint • NLE .ALE & .CSV • Two-Stage O(1) Dedupe • 10-Test TDD • Zero Node.js</span>
       </div>
     </div>
     <div id="trafficBanner" class="traffic-banner">
@@ -384,6 +384,17 @@
 
       <label>Secondary Simultaneous Destination (Copy #2 for 3-2-1 Rule)</label>
       <input type="text" id="dst2Input" placeholder="e.g. F:\Backups\Camera_Mirror_001 (enables Green 3-2-1 Status)" oninput="updateCommandDock()" />
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label>Camera ID Token (Optional)</label>
+          <input type="text" id="camIdInput" placeholder="e.g. CamA" oninput="updateCommandDock()" />
+        </div>
+        <div>
+          <label>Magazine / Roll ID Token (Optional)</label>
+          <input type="text" id="rollIdInput" placeholder="e.g. A001" oninput="updateCommandDock()" />
+        </div>
+      </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div>
@@ -465,20 +476,20 @@
       <!-- HARDWARE, AZURE IT & CI/CD GUARDRAILS TELEMETRY -->
       <div class="check-group" style="margin-top:14px;font-size:11.5px;">
         <div style="font-weight:700;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;">
-          🛡️ Lead DIT, Enterprise IT & CI/CD Safety Gates (v3.2)
+          🛡️ Lead DIT, OS Kernel & Systems Design Guardrails (v4.0)
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
           <div style="background:var(--bg-0);padding:6px 8px;border-radius:6px;border:1px solid var(--border);">
-            💾 <b>Free-Space Gate:</b> <span style="color:#34d399">+5% Headroom Enforced</span>
+            ⚡ <b>Kernel I/O:</b> <span style="color:#34d399">SequentialScan + Flush($true)</span>
           </div>
           <div style="background:var(--bg-0);padding:6px 8px;border-radius:6px;border:1px solid var(--border);">
-            🎞️ <b>Roll Collision Guard:</b> <span style="color:#34d399">Active (Size/Path Check)</span>
+            🔄 <b>Crash-Resume:</b> <span style="color:#34d399">Idempotent Checkpoint</span>
           </div>
           <div style="background:var(--bg-0);padding:6px 8px;border-radius:6px;border:1px solid var(--border);">
-            ⚡ <b>Win32 Awake Lock:</b> <span style="color:#34d399">ES_SYSTEM_REQUIRED</span>
+            🎬 <b>NLE Deliverables:</b> <span style="color:#34d399">.MHL + .ALE + .CSV + HTML</span>
           </div>
           <div style="background:var(--bg-0);padding:6px 8px;border-radius:6px;border:1px solid var(--border);">
-            ⚙️ <b>PS 5.1 & PS 7 (.NET 8):</b> <span style="color:#34d399">CI Exit Codes (0/1)</span>
+            🧮 <b>Two-Stage Dedupe:</b> <span style="color:#34d399">O(1) Size + Runspace Hash</span>
           </div>
         </div>
       </div>
@@ -510,13 +521,16 @@
         </p>
         <div class="toolkit-bar">
           <button class="btn btn-secondary" onclick="generateCertificate()">
-            📜 Seal 100% Full-Roll ASC-MHL + Duration/Codec Certificate
+            📜 Seal Full-Roll .MHL + Avid/Resolve .ALE + .CSV + Certificate
           </button>
           <button class="btn btn-secondary" style="border-color:#10b981;color:#34d399;" onclick="verifyMhlLedger()">
             🛡️ Verify .MHL Seal (Multi-Threaded Bitrot Scrub)
           </button>
           <button class="btn btn-secondary" style="border-color:#38bdf8;color:#38bdf8;" onclick="document.getElementById('mhlFileInput').click()">
             📄 Inspect .MHL XML Ledger in Browser
+          </button>
+          <button class="btn btn-secondary" style="border-color:#f59e0b;color:#fbbf24;" onclick="buildDedupeScanCmd()">
+            🧮 Two-Stage Dedupe Scan (O(1) Size + SHA-256)
           </button>
           <button class="btn btn-secondary" style="border-color:#a855f7;color:#d8b4fe;" onclick="buildAzCopyCloudVaultCmd()">
             ☁️ 3-2-1 Azure Blob Vault (AzCopy v10)
@@ -525,7 +539,7 @@
             🗂️ Organize by Date (YYYY\YYYY-MM-DD • Glues .AAE & Live Photos)
           </button>
           <button class="btn btn-secondary" style="border-color:#10b981;color:#34d399;" onclick="buildTddSuiteCmd()">
-            🧪 Run 7-Test Local TDD Suite
+            🧪 Run 10-Test Local TDD Suite
           </button>
           <button class="btn btn-secondary" onclick="extractForensics()">
             🔍 Reverse-Engineer macOS ._* Metadata Strings
@@ -1117,6 +1131,8 @@
       const src = document.getElementById('srcInput').value.trim();
       const dst1 = document.getElementById('dst1Input').value.trim();
       const dst2 = document.getElementById('dst2Input').value.trim();
+      const camId = (document.getElementById('camIdInput')?.value || '').trim();
+      const rollId = (document.getElementById('rollIdInput')?.value || '').trim();
       const algo = document.getElementById('algoSelect').value;
       const macMode = document.getElementById('macModeSelect').value;
       const l1 = document.getElementById('chkL1').checked ? '$true' : '$false';
@@ -1124,6 +1140,8 @@
       const l3 = document.getElementById('chkL3').checked ? '$true' : '$false';
       const rescue = document.getElementById('chkRescue').checked ? ' -RescueMode' : '';
       const dst2Arg = dst2 ? ` -SecondaryDestinationRoot "${dst2}"` : '';
+      const camArg = camId ? ` -CameraId "${camId}"` : '';
+      const rollArg = rollId ? ` -RollId "${rollId}"` : '';
 
       const banner = document.getElementById('trafficBanner');
       if (dst2) {
@@ -1138,8 +1156,8 @@
         banner.innerHTML = '<span>🟡 1-DRIVE COPY VERIFIED (KEEP CARD OR MIRROR FOR 3-2-1 BEFORE IN-CAMERA FORMAT)</span>';
       }
 
-      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-OffloadProEngine.ps1 \`\n  -Action Offload \`\n  -SourceRoot "${src}" \`\n  -DestinationRoot "${dst1}"${dst2Arg} \`\n  -Algorithm ${algo} \`\n  -MacMode ${macMode} \`\n  -VerifyLevel1 ${l1} -VerifyLevel2 ${l2} -VerifyLevel3 ${l3}${rescue}`;
-      setCommandDock('⚡ Single-Read Multi-Destination Offload + Full-Roll MHL Seal (Pure PowerShell):', cmd, false);
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-OffloadProEngine.ps1 \`\n  -Action Offload \`\n  -SourceRoot "${src}" \`\n  -DestinationRoot "${dst1}"${dst2Arg}${camArg}${rollArg} \`\n  -Algorithm ${algo} \`\n  -MacMode ${macMode} \`\n  -VerifyLevel1 ${l1} -VerifyLevel2 ${l2} -VerifyLevel3 ${l3}${rescue}`;
+      setCommandDock('⚡ Single-Read Multi-Destination Offload + Full-Roll MHL & NLE .ALE/.CSV Seal:', cmd, false);
     }
 
     function startOffload() {
@@ -1184,9 +1202,16 @@
       setCommandDock('🗂️ Non-Destructive Date Organizer (YYYY\\YYYY-MM-DD • Glues Live Photos & .AAE/.XMP Sidecars):', cmd, true);
     }
 
+    function buildDedupeScanCmd() {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      const algo = document.getElementById('algoSelect').value;
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-OffloadProEngine.ps1 -Action DedupeScan -TargetPath "${targetPath}" -Algorithm ${algo} -Threads 6`;
+      setCommandDock('🧮 Two-Stage Archive Deduplication Scan (Stage 1: O(1) Size Filter -> Stage 2: Runspace Hash):', cmd, true);
+    }
+
     function buildTddSuiteCmd() {
       const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-TDDTestSuite.ps1`;
-      setCommandDock('🧪 Execute 7-Invariant Local TDD & Bit-Flip Mutation Test Suite:', cmd, true);
+      setCommandDock('🧪 Execute 10-Invariant Local TDD & Bit-Flip Mutation Test Suite:', cmd, true);
     }
 
     function extractForensics() {

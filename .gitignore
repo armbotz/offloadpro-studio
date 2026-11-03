@@ -5,6 +5,8 @@ GEMINI.md
 # Logs & generated reports
 *.log
 *.mhl
+*.ale
+*_PostHouse_Manifest.csv
 *_Offload_Certificate.html
 *_ContactSheet.html
 *_integrity_report.txt

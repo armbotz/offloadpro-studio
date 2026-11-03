@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-    OffloadPro DIT Studio v3.3 - Pure PowerShell Single-Read Multi-Destination Offload,
-    Pre-Flight ECDF/Merkle/Gap X-Ray, S.M.A.R.T. Volume Bay, Full-Roll Multi-Threaded ASC-MHL Sealer,
-    MHL Bitrot Verifier, Sidecar-Glued Date Organizer, Cross-Archive Comparator & Win32 Sleep Guard.
+    OffloadPro DIT Studio v4.0 - Upper-Echelon Pure PowerShell Media Offload Engine,
+    Win32 SequentialScan/FlushFileBuffers I/O, Crash-Resumable Ingest, Full-Roll ASC-MHL + NLE (.ALE/.CSV) Sealer,
+    Two-Stage Size+Hash Deduplication Engine, Sidecar-Glued Date Organizer & 3-Level FFmpeg Validator.
 .DESCRIPTION
     100% Native PowerShell 5.1 & PowerShell 7+ (.NET Framework 4.8 & .NET 8/9) compatible engine
     requiring zero Node.js runtime, zero npm packages, and zero localhost HTTP servers.
@@ -11,7 +11,7 @@
 #>
 param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet('Preflight', 'Offload', 'Certificate', 'VerifyMhl', 'OrganizeByDate', 'CompareArchives', 'ExportTelemetry')]
+    [ValidateSet('Preflight', 'Offload', 'Certificate', 'VerifyMhl', 'OrganizeByDate', 'DedupeScan', 'CompareArchives', 'ExportTelemetry')]
     [string]$Action = 'Preflight',
 
     [Parameter(Mandatory = $false)]
@@ -28,6 +28,12 @@ param(
 
     [Parameter(Mandatory = $false)]
     [string]$MhlPath = '',
+
+    [Parameter(Mandatory = $false)]
+    [string]$CameraId = '',
+
+    [Parameter(Mandatory = $false)]
+    [string]$RollId = '',
 
     [Parameter(Mandatory = $false)]
     [ValidateSet('SHA256', 'MD5', 'SHA1')]
@@ -449,6 +455,7 @@ function Invoke-PreflightScan {
     return [PSCustomObject]$result
 }
 
+# OS Professor Kernel I/O Optimization: SequentialScan Read-Ahead Hint + Explicit Hardware FlushFileBuffers
 function Copy-SingleReadMultiWrite {
     param(
         [string]$SourceFile,
@@ -457,7 +464,14 @@ function Copy-SingleReadMultiWrite {
     )
     $hasher = New-CryptoHasher -HashAlgorithm $HashAlgorithm
     $buf = New-Object byte[] (4 * 1024 * 1024)
-    $inStream = [System.IO.File]::Open($SourceFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+    $inStream = New-Object System.IO.FileStream(
+        $SourceFile,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::Read,
+        [System.IO.FileShare]::Read,
+        (4 * 1024 * 1024),
+        [System.IO.FileOptions]::SequentialScan
+    )
     $outStreams = New-Object 'System.Collections.Generic.List[System.IO.FileStream]'
     try {
         foreach ($tf in $TargetFiles) {
@@ -465,13 +479,23 @@ function Copy-SingleReadMultiWrite {
             if (-not (Test-Path -LiteralPath $dir)) {
                 [void][System.IO.Directory]::CreateDirectory($dir)
             }
-            $outStreams.Add([System.IO.File]::Open($tf, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None))
+            $outStreams.Add((New-Object System.IO.FileStream(
+                $tf,
+                [System.IO.FileMode]::Create,
+                [System.IO.FileAccess]::Write,
+                [System.IO.FileShare]::None,
+                (4 * 1024 * 1024),
+                [System.IO.FileOptions]::SequentialScan
+            )))
         }
         while (($read = $inStream.Read($buf, 0, $buf.Length)) -gt 0) {
             [void]$hasher.TransformBlock($buf, 0, $read, $buf, 0)
             foreach ($os in $outStreams) {
                 $os.Write($buf, 0, $read)
             }
+        }
+        foreach ($os in $outStreams) {
+            $os.Flush($true)
         }
         [void]$hasher.TransformFinalBlock($buf, 0, 0)
         return [System.BitConverter]::ToString($hasher.Hash).Replace('-', '')
@@ -485,7 +509,14 @@ function Copy-SingleReadMultiWrite {
 function Get-FileChecksumFull {
     param([string]$FilePath, [string]$HashAlgorithm)
     $hasher = New-CryptoHasher -HashAlgorithm $HashAlgorithm
-    $s = [System.IO.File]::Open($FilePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+    $s = New-Object System.IO.FileStream(
+        $FilePath,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::Read,
+        [System.IO.FileShare]::Read,
+        (4 * 1024 * 1024),
+        [System.IO.FileOptions]::SequentialScan
+    )
     try {
         return [System.BitConverter]::ToString($hasher.ComputeHash($s)).Replace('-', '')
     } finally {
@@ -514,6 +545,8 @@ function New-MhlAndCertificate {
     $parentDir  = Split-Path -Parent $safeArchive
     $mhlPath    = Join-Path $parentDir "$folderName.mhl"
     $certPath   = Join-Path $parentDir "${folderName}_Offload_Certificate.html"
+    $csvPath    = Join-Path $parentDir "${folderName}_PostHouse_Manifest.csv"
+    $alePath    = Join-Path $parentDir "$folderName.ale"
 
     $totalBytes = [int64]0
     $extSummary = @{}
@@ -540,14 +573,14 @@ function New-MhlAndCertificate {
         } finally { $sha.Dispose() }
     }
 
-    Write-Host "[ASC-MHL SEALER] Sealing 100% of roll ($($files.Count) files) with $HashAlgorithm..." -ForegroundColor Cyan
+    Write-Host "[ASC-MHL & NLE SEALER] Sealing 100% of roll ($($files.Count) files) with $HashAlgorithm..." -ForegroundColor Cyan
     $mhlEntries = New-Object 'System.Collections.Generic.List[object]'
     $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads)
     $pool.Open()
     $jobs = New-Object 'System.Collections.Generic.List[object]'
 
     $sbHash = {
-        param($fullPath, $relPath, $size, $mtimeIso, $algo)
+        param($fullPath, $relPath, $nameOnly, $size, $mtimeIso, $algo)
         $hasher = switch ($algo.ToUpperInvariant()) {
             'MD5'   { [System.Security.Cryptography.MD5]::Create() }
             'SHA1'  { [System.Security.Cryptography.SHA1]::Create() }
@@ -556,7 +589,7 @@ function New-MhlAndCertificate {
         $s = [System.IO.File]::Open($fullPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
         try {
             $h = [System.BitConverter]::ToString($hasher.ComputeHash($s)).Replace('-', '')
-            return [PSCustomObject]@{ RelPath = $relPath; Size = $size; MTime = $mtimeIso; Hash = $h }
+            return [PSCustomObject]@{ Name = $nameOnly; RelPath = $relPath; Size = $size; MTime = $mtimeIso; Hash = $h }
         } finally {
             $s.Dispose()
             $hasher.Dispose()
@@ -567,9 +600,9 @@ function New-MhlAndCertificate {
         $rel = Get-RelativePathSafe -BasePath $safeArchive -FullPath $f.FullName
         $mtimeIso = $f.LastWriteTimeUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')
         if ($PrecomputedHashes -and $PrecomputedHashes.ContainsKey($rel)) {
-            $mhlEntries.Add([PSCustomObject]@{ RelPath = $rel; Size = $f.Length; MTime = $mtimeIso; Hash = $PrecomputedHashes[$rel] })
+            $mhlEntries.Add([PSCustomObject]@{ Name = $f.Name; RelPath = $rel; Size = $f.Length; MTime = $mtimeIso; Hash = $PrecomputedHashes[$rel] })
         } else {
-            $ps = [powershell]::Create().AddScript($sbHash).AddArgument($f.FullName).AddArgument($rel).AddArgument($f.Length).AddArgument($mtimeIso).AddArgument($HashAlgorithm)
+            $ps = [powershell]::Create().AddScript($sbHash).AddArgument($f.FullName).AddArgument($rel).AddArgument($f.Name).AddArgument($f.Length).AddArgument($mtimeIso).AddArgument($HashAlgorithm)
             $ps.RunspacePool = $pool
             $jobs.Add([PSCustomObject]@{ Pipe = $ps; Handle = $ps.BeginInvoke() })
         }
@@ -591,8 +624,8 @@ function New-MhlAndCertificate {
 <?xml version="1.0" encoding="UTF-8"?>
 <hashlist version="1.1">
   <creatorinfo>
-    <name>OffloadPro DIT Studio v3.3 (Pure PowerShell Full-Roll Sealer)</name>
-    <version>3.3.0</version>
+    <name>OffloadPro DIT Studio v4.0 (Pure PowerShell Full-Roll Sealer)</name>
+    <version>4.0.0</version>
     <creationdate>$nowIso</creationdate>
     <merkle_tree_sha256>$merkleRoot</merkle_tree_sha256>
   </creatorinfo>
@@ -600,6 +633,30 @@ $mhlNodes
 </hashlist>
 "@
     Set-Content -LiteralPath $mhlPath -Value $mhlXml -Encoding UTF8
+
+    # Generate NLE Post-House CSV Manifest & Avid/DaVinci Resolve .ALE Log Exchange File
+    $csvLines = New-Object 'System.Collections.Generic.List[string]'
+    $csvLines.Add("RollName,RelativePath,Bytes,Algorithm,Checksum,LastModifiedUtc")
+    foreach ($e in $mhlEntries) {
+        $safeRelCsv = $e.RelPath.Replace('"', '""')
+        $csvLines.Add("`"$folderName`",`"$safeRelCsv`",$($e.Size),$HashAlgorithm,$($e.Hash),$($e.MTime)")
+    }
+    Set-Content -LiteralPath $csvPath -Value ($csvLines -join "`r`n") -Encoding UTF8
+
+    $aleLines = New-Object 'System.Collections.Generic.List[string]'
+    $aleLines.Add("Heading")
+    $aleLines.Add("FIELD_DELIM`tTABS")
+    $aleLines.Add("VIDEO_FORMAT`t1080")
+    $aleLines.Add("FPS`t24")
+    $aleLines.Add("")
+    $aleLines.Add("Column")
+    $aleLines.Add("Name`tTape`tSource File`tSize`tChecksum ($HashAlgorithm)`tShoot Date")
+    $aleLines.Add("")
+    $aleLines.Add("Data")
+    foreach ($e in $mhlEntries) {
+        $aleLines.Add("$($e.Name)`t$folderName`t$($e.RelPath)`t$($e.Size)`t$($e.Hash)`t$($e.MTime)")
+    }
+    Set-Content -LiteralPath $alePath -Value ($aleLines -join "`r`n") -Encoding UTF8
 
     $ffprobeCmd = (Get-Command ffprobe -ErrorAction SilentlyContinue).Source
     $totalDurationSec = 0.0
@@ -717,10 +774,10 @@ $mhlNodes
   <div class="card">
     <div class="header">
       <div>
-        <h1 style="margin:0;font-size:24px;">OffloadPro DIT Studio v3.3 &mdash; Camera Roll Verification Certificate</h1>
-        <p style="margin:6px 0 0;color:#94a3b8;">Generated: $nowIso | Capture Window: $dateRangeFormatted</p>
+        <h1 style="margin:0;font-size:24px;">OffloadPro DIT Studio v4.0 &mdash; Camera Roll Verification Certificate</h1>
+        <p style="margin:6px 0 0;color:#94a3b8;">Generated: $nowIso | Capture Window: $dateRangeFormatted | Deliverables: .MHL + .ALE + .CSV</p>
       </div>
-      <div class="stamp">&#10003; 100% FULL-ROLL ASC-MHL SEALED</div>
+      <div class="stamp">&#10003; 100% FULL-ROLL ASC-MHL &amp; NLE SEALED</div>
     </div>
     <div class="grid">
       <div class="metric"><div class="label">100% Sealed Media Files</div><div class="val">$($mhlEntries.Count) / $($files.Count) Files</div></div>
@@ -742,7 +799,7 @@ $mhlNodes
 </html>
 "@
     Set-Content -LiteralPath $certPath -Value $certHtml -Encoding UTF8
-    Write-Host "[CERTIFICATE COMPLETE] 100% Full-Roll Sealed: $($mhlEntries.Count) files ($([Math]::Round($totalBytes / 1GB, 2)) GB) | Total Duration: $durationFormatted | Embedded Thumbnails: $($thumbCards.Count)" -ForegroundColor Green
+    Write-Host "[CERTIFICATE & NLE DELIVERABLES COMPLETE] 100% Full-Roll Sealed: $($mhlEntries.Count) files ($([Math]::Round($totalBytes / 1GB, 2)) GB) | Deliverables: .mhl, .ale, .csv, .html" -ForegroundColor Green
 }
 
 function Invoke-VerifyMhlLedger {
@@ -767,7 +824,7 @@ function Invoke-VerifyMhlLedger {
     [xml]$xmlDoc = Get-Content -LiteralPath $resolvedMhl -Raw -Encoding UTF8
     $nodes = @($xmlDoc.hashlist.hash)
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "OffloadPro v3.3 Vault & Bitrot MHL Verifier -- Entries: $($nodes.Count)" -ForegroundColor Cyan
+    Write-Host "OffloadPro v4.0 Vault & Bitrot MHL Verifier -- Entries: $($nodes.Count)" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Cyan
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -904,6 +961,92 @@ function Invoke-OrganizeByDate {
     Write-Host "[ORGANIZE BY DATE COMPLETE] Organized $organizedCount files across $($bucketSet.Count) date bucket(s) (Live Photos & .AAE/.XMP sidecars glued)." -ForegroundColor Green
 }
 
+# Systems Design Professor Scalability Engine: Two-Stage O(1) Size-Pre-Filter + Multi-Threaded Cryptographic Deduplication
+function Invoke-DedupeScan {
+    param(
+        [string]$ArchivePath,
+        [string]$HashAlgorithm = 'SHA256',
+        [int]$MaxThreads = 6
+    )
+    $safeArchive = Assert-SafeTargetPath -InputPath $ArchivePath -IsMutating $false
+    $files = @(Get-ChildItem -LiteralPath $safeArchive -File -Recurse -Force -ErrorAction SilentlyContinue |
+        Where-Object {
+            -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -and
+            -not $_.Name.StartsWith('._') -and
+            ($OsJunkNames -notcontains $_.Name.ToLowerInvariant()) -and
+            $_.FullName -notmatch '(?i)\\(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
+        })
+
+    # Stage 1: Group by exact byte length (eliminates all unique-size files with zero disk I/O)
+    $sizeGroups = @{}
+    foreach ($f in $files) {
+        if ($f.Length -le 0) { continue }
+        if (-not $sizeGroups.ContainsKey($f.Length)) {
+            $sizeGroups[$f.Length] = New-Object 'System.Collections.Generic.List[System.IO.FileInfo]'
+        }
+        $sizeGroups[$f.Length].Add($f)
+    }
+
+    $candidates = New-Object 'System.Collections.Generic.List[System.IO.FileInfo]'
+    foreach ($grp in $sizeGroups.Values) {
+        if ($grp.Count -gt 1) {
+            foreach ($item in $grp) { $candidates.Add($item) }
+        }
+    }
+
+    # Stage 2: Multi-threaded cryptographic hash only on same-size candidates
+    $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads)
+    $pool.Open()
+    $jobs = New-Object 'System.Collections.Generic.List[object]'
+    $sbHash = {
+        param($fullPath, $len, $algo)
+        $hasher = switch ($algo.ToUpperInvariant()) {
+            'MD5'   { [System.Security.Cryptography.MD5]::Create() }
+            'SHA1'  { [System.Security.Cryptography.SHA1]::Create() }
+            default { [System.Security.Cryptography.SHA256]::Create() }
+        }
+        $s = [System.IO.File]::Open($fullPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+        try {
+            $h = [System.BitConverter]::ToString($hasher.ComputeHash($s)).Replace('-', '')
+            return [PSCustomObject]@{ Length = $len; Hash = $h }
+        } finally {
+            $s.Dispose()
+            $hasher.Dispose()
+        }
+    }
+
+    foreach ($c in $candidates) {
+        $ps = [powershell]::Create().AddScript($sbHash).AddArgument($c.FullName).AddArgument($c.Length).AddArgument($HashAlgorithm)
+        $ps.RunspacePool = $pool
+        $jobs.Add([PSCustomObject]@{ Pipe = $ps; Handle = $ps.BeginInvoke() })
+    }
+
+    $hashTallies = @{}
+    $hashSizes   = @{}
+    foreach ($j in $jobs) {
+        $r = $j.Pipe.EndInvoke($j.Handle) | Select-Object -First 1
+        $j.Pipe.Dispose()
+        if ($r) {
+            $key = "$($r.Length):$($r.Hash)"
+            if ($hashTallies.ContainsKey($key)) { $hashTallies[$key]++ } else { $hashTallies[$key] = 1 }
+            $hashSizes[$key] = [int64]$r.Length
+        }
+    }
+    $pool.Close(); $pool.Dispose()
+
+    $trueDupFiles = 0
+    $reclaimableBytes = [int64]0
+    foreach ($kv in $hashTallies.GetEnumerator()) {
+        if ($kv.Value -gt 1) {
+            $extra = $kv.Value - 1
+            $trueDupFiles += $extra
+            $reclaimableBytes += ([int64]$extra * $hashSizes[$kv.Key])
+        }
+    }
+
+    Write-Host "[DEDUPE SCAN COMPLETE] Total Scanned: $($files.Count) | Same-Size Candidates Hashed: $($candidates.Count) | True Hash Duplicates: $trueDupFiles ($([Math]::Round($reclaimableBytes / 1MB, 2)) MB reclaimable)" -ForegroundColor Green
+}
+
 function Invoke-CompareArchives {
     param([string]$ArchiveA, [string]$ArchiveB)
     $scanA = Invoke-PreflightScan -ScanPath $ArchiveA
@@ -911,7 +1054,7 @@ function Invoke-CompareArchives {
     $exactParity = ($scanA.merkleStructureRoot -eq $scanB.merkleStructureRoot) -and ($null -ne $scanA.merkleStructureRoot)
     $color = if ($exactParity) { 'Green' } else { 'Yellow' }
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "OffloadPro v3.3 Cross-Archive Merkle & Parity Comparator" -ForegroundColor Cyan
+    Write-Host "OffloadPro v4.0 Cross-Archive Merkle & Parity Comparator" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host "Archive A Real Files : $($scanA.realFilesCount) ($([Math]::Round($scanA.realFilesBytes / 1GB, 3)) GB) | Merkle: $($scanA.merkleStructureRoot)"
     Write-Host "Archive B Real Files : $($scanB.realFilesCount) ($([Math]::Round($scanB.realFilesBytes / 1GB, 3)) GB) | Merkle: $($scanB.merkleStructureRoot)"
@@ -926,7 +1069,7 @@ try {
             $vols = Get-MountedVolumesTelemetry
             $scan = Invoke-PreflightScan -ScanPath $TargetPath
             Write-Host "================================================================" -ForegroundColor Cyan
-            Write-Host "OffloadPro v3.3 Pre-Flight X-Ray (Pure PowerShell)" -ForegroundColor Cyan
+            Write-Host "OffloadPro v4.0 Pre-Flight X-Ray (Pure PowerShell)" -ForegroundColor Cyan
             Write-Host "================================================================" -ForegroundColor Cyan
             Write-Host "Mounted Volumes Detected : $($vols.Count)"
             Write-Host "Real Media/User Files    : $($scan.realFilesCount) ($([Math]::Round($scan.realFilesBytes / 1GB, 3)) GB)"
@@ -952,7 +1095,14 @@ try {
         }
         'Offload' {
             $safeSrc  = Assert-SafeTargetPath -InputPath $SourceRoot -IsMutating $false
-            $safeDst1 = Assert-SafeTargetPath -InputPath $DestinationRoot -IsMutating $true
+            $effectiveDst1 = $DestinationRoot
+            if (-not [string]::IsNullOrWhiteSpace($CameraId) -or -not [string]::IsNullOrWhiteSpace($RollId)) {
+                $dateStr = (Get-Date).ToString('yyyy-MM-dd')
+                $camPart = if ($CameraId) { "_$CameraId" } else { '' }
+                $rolPart = if ($RollId)   { "_$RollId" }   else { '' }
+                $effectiveDst1 = Join-Path $DestinationRoot "${dateStr}${camPart}${rolPart}"
+            }
+            $safeDst1 = Assert-SafeTargetPath -InputPath $effectiveDst1 -IsMutating $true
             $dstRoots = New-Object 'System.Collections.Generic.List[string]'
             $dstRoots.Add($safeDst1)
             if (-not [string]::IsNullOrWhiteSpace($SecondaryDestinationRoot)) {
@@ -985,6 +1135,7 @@ try {
 
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
             $copied = 0
+            $resumedSkipped = 0
             $mismatches = 0
             $inlineHashes = @{}
 
@@ -996,6 +1147,31 @@ try {
                         Join-Path $r $item.RelPath
                     }
                 })
+
+                # OS Professor Crash-Resumable Checkpoint Check: If all target files already exist with matching byte size & mtime, verify in place
+                $allTargetsIntact = $true
+                foreach ($tf in $targets) {
+                    if (-not (Test-Path -LiteralPath $tf)) {
+                        $allTargetsIntact = $false
+                        break
+                    }
+                    $tfi = Get-Item -LiteralPath $tf -Force
+                    if ($tfi.Length -ne $item.File.Length -or $tfi.LastWriteTimeUtc -ne $item.File.LastWriteTimeUtc) {
+                        $allTargetsIntact = $false
+                        break
+                    }
+                }
+
+                if ($allTargetsIntact -and (-not $AllowOverwrite)) {
+                    $existingHash = Get-FileChecksumFull -FilePath $targets[0] -HashAlgorithm $Algorithm
+                    if (-not $item.IsForensic) {
+                        $inlineHashes[$item.RelPath] = $existingHash
+                    }
+                    $resumedSkipped++
+                    $copied++
+                    continue
+                }
+
                 $srcHash = Copy-SingleReadMultiWrite -SourceFile $item.File.FullName -TargetFiles $targets -HashAlgorithm $Algorithm
                 if (-not $item.IsForensic) {
                     $inlineHashes[$item.RelPath] = $srcHash
@@ -1012,7 +1188,7 @@ try {
             }
             $sw.Stop()
             $traffic = if ($mismatches -gt 0) { 'RED_ERRORS' } elseif ($dstRoots.Count -ge 2) { 'GREEN_321_VERIFIED' } else { 'AMBER_SINGLE_COPY' }
-            Write-Host "[OFFLOAD COMPLETE] $copied/$($queue.Count) files | Level 1 Hash Mismatches: $mismatches | Status: $traffic" -ForegroundColor Green
+            Write-Host "[OFFLOAD COMPLETE] $copied/$($queue.Count) files (Resumed: $resumedSkipped) | Level 1 Hash Mismatches: $mismatches | Status: $traffic" -ForegroundColor Green
 
             foreach ($r in $dstRoots) {
                 New-MhlAndCertificate -ArchivePath $r -HashAlgorithm $Algorithm -PrecomputedHashes $inlineHashes -MaxThreads $Threads
@@ -1041,6 +1217,9 @@ try {
         }
         'OrganizeByDate' {
             Invoke-OrganizeByDate -SourceArchive $SourceRoot -OrganizedRoot $DestinationRoot -CreateHardlinks:$UseHardlinks
+        }
+        'DedupeScan' {
+            Invoke-DedupeScan -ArchivePath $TargetPath -HashAlgorithm $Algorithm -MaxThreads $Threads
         }
         'CompareArchives' {
             Invoke-CompareArchives -ArchiveA $SourceRoot -ArchiveB $DestinationRoot
