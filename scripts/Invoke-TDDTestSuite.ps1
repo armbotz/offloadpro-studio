@@ -5,6 +5,7 @@
     Executes 10 deterministic Red/Green boundary, mutation, taxonomy, collision, organizer,
     crash-resume checkpoint, two-stage deduplication, NLE (.ALE/.CSV) deliverables, and privacy
     invariant tests in an isolated temporary directory without touching any real drives.
+    Uses 100% deterministic O(N) literal substring checks (.Contains) with ZERO regex in CI.
     Returns ExitCode 0 when all 10 tests pass, or ExitCode 1 on any assertion failure.
 #>
 $ErrorActionPreference = 'Stop'
@@ -75,10 +76,10 @@ try {
     [System.IO.File]::WriteAllBytes($dsStorePath, ([byte[]](0..31)))
     [System.IO.File]::SetLastWriteTimeUtc($dsStorePath, $captureDate)
 
-    # --- TEST 1: Pre-Flight Sequence Gap, Orphan Sidecar & Merkle Determinism ---
+    # --- TEST 1: Pre-Flight Sequence Gap, Orphan Sidecar & Merkle Determinism (Zero Regex) ---
     $preflightOut = (& $EnginePath -Action Preflight -TargetPath $MockSd *>&1 | ForEach-Object { "$_" }) -join "`n"
     Assert-Condition `
-        -Condition ($preflightOut -match 'Sequence Numbering Gaps\s*:\s*1' -and $preflightOut -match 'Orphan Sidecars:\s*1' -and $preflightOut -match 'Live Photo Pairs:\s*1') `
+        -Condition ($preflightOut.Contains('Sequence Numbering Gaps  : 1') -and $preflightOut.Contains('Orphan Sidecars: 1') -and $preflightOut.Contains('Live Photo Pairs: 1')) `
         -TestName "Test 1: Pre-Flight detects Sequence Gaps (1), Orphan Sidecars (1) & Live Photo Pairs (1)" `
         -FailureDetail "Unexpected preflight output: $preflightOut"
 
@@ -98,7 +99,7 @@ try {
     $sealedCount = @($mhlXml.hashlist.hash).Count
     $verifyGreenOut = (& $EnginePath -Action VerifyMhl -TargetPath $BackupDir -Threads 2 *>&1 | ForEach-Object { "$_" }) -join "`n"
     Assert-Condition `
-        -Condition ($sealedCount -eq 7 -and $LASTEXITCODE -eq 0 -and $verifyGreenOut -match 'Verified OK: 7/7') `
+        -Condition ($sealedCount -eq 7 -and $LASTEXITCODE -eq 0 -and $verifyGreenOut.Contains('Verified OK: 7/7')) `
         -TestName "Test 3: 100% Full-Roll ASC-MHL Sealer seals all 7 real files & VerifyMhl passes (7/7)" `
         -FailureDetail "sealedCount=$sealedCount, ExitCode=$LASTEXITCODE, out=$verifyGreenOut"
 
@@ -112,7 +113,7 @@ try {
     $verifyRedOut = (& $EnginePath -Action VerifyMhl -TargetPath $BackupDir -Threads 2 *>&1 | ForEach-Object { "$_" }) -join "`n"
     $bitrotExitCode = $LASTEXITCODE
     Assert-Condition `
-        -Condition ($bitrotExitCode -eq 1 -and $verifyRedOut -match 'Bitrot Hash Errors: 1') `
+        -Condition ($bitrotExitCode -eq 1 -and $verifyRedOut.Contains('Bitrot Hash Errors: 1')) `
         -TestName "Test 4: Bit-Flip Mutation Test catches 1-bit corruption (same file size) & returns ExitCode 1" `
         -FailureDetail "Expected ExitCode 1 on bit-flip mutation, got $bitrotExitCode ($verifyRedOut)"
 
@@ -126,7 +127,7 @@ try {
     try {
         [void](& $EnginePath -Action Offload -SourceRoot $MockSd -DestinationRoot $BackupDir -VerifyLevel1 $true -VerifyLevel2 $false *>&1)
     } catch {
-        if ($_.Exception.Message -match 'DIT ROLL-COLLISION GUARD BLOCKED') {
+        if ($_.Exception.Message.Contains('DIT ROLL-COLLISION GUARD BLOCKED')) {
             $collisionBlocked = $true
         }
     }
@@ -148,9 +149,12 @@ try {
         -TestName "Test 6: OrganizeByDate glues Live Photo (.JPG+.MOV) and later-edited .AAE into same YYYY\YYYY-MM-DD bucket" `
         -FailureDetail "Files were not glued into $expectedBucket"
 
-    # --- TEST 7: Zero-PII stdout Privacy Invariant ---
+    # --- TEST 7: Zero-PII stdout Privacy Invariant (Deterministic Substring Check, Zero Regex) ---
     $combinedStdout = "$preflightOut`n$offloadOut`n$verifyGreenOut"
-    $leakedPii = $combinedStdout -match '(IMG_0001|IMG_9999|C0001\.pdf|C0002\.pdf)'
+    $leakedPii = $combinedStdout.Contains('IMG_0001') -or
+                 $combinedStdout.Contains('IMG_9999') -or
+                 $combinedStdout.Contains('C0001.pdf') -or
+                 $combinedStdout.Contains('C0002.pdf')
     Assert-Condition `
         -Condition (-not $leakedPii) `
         -TestName "Test 7: Zero-PII stdout Privacy Invariant (0 personal filenames printed to console)" `
@@ -159,7 +163,7 @@ try {
     # --- TEST 8: OS Professor Crash-Resumable Checkpoint Invariant ---
     $resumeOut = (& $EnginePath -Action Offload -SourceRoot $MockSd -DestinationRoot $BackupDir -Algorithm SHA256 -MacMode forensic_split -VerifyLevel1 $true -VerifyLevel2 $false -VerifyLevel3 $false -Threads 2 *>&1 | ForEach-Object { "$_" }) -join "`n"
     Assert-Condition `
-        -Condition ($resumeOut -match '9/9 files \(Resumed:\s*9\)' -and $resumeOut -match 'Hash Mismatches:\s*0') `
+        -Condition ($resumeOut.Contains('9/9 files (Resumed: 9)') -and $resumeOut.Contains('Hash Mismatches: 0')) `
         -TestName "Test 8: Crash-Resumable Checkpoint resumes all 9 intact files with 0 re-copies & 0 mismatches" `
         -FailureDetail "Unexpected resume output: $resumeOut"
 
@@ -172,14 +176,15 @@ try {
 
     $dedupeOut = (& $EnginePath -Action DedupeScan -TargetPath $DedupeDir -Algorithm SHA256 -Threads 2 *>&1 | ForEach-Object { "$_" }) -join "`n"
     Assert-Condition `
-        -Condition ($dedupeOut -match 'Same-Size Candidates Hashed:\s*3' -and $dedupeOut -match 'True Hash Duplicates:\s*1') `
+        -Condition ($dedupeOut.Contains('Same-Size Candidates Hashed: 3') -and $dedupeOut.Contains('True Hash Duplicates: 1')) `
         -TestName "Test 9: Two-Stage DedupeScan filters unique sizes in O(1) & distinguishes true duplicate from same-size collision" `
         -FailureDetail "Unexpected DedupeScan output: $dedupeOut"
 
     # --- TEST 10: Lead DIT NLE Post-House Deliverables (.ALE & .CSV) ---
     $aleFile = Join-Path (Split-Path -Parent $BackupDir) 'Roll_A001.ale'
     $csvFile = Join-Path (Split-Path -Parent $BackupDir) 'Roll_A001_PostHouse_Manifest.csv'
-    $aleExists = (Test-Path -LiteralPath $aleFile) -and ((Get-Content -LiteralPath $aleFile -Raw) -match 'FPS\s+24' -and (Get-Content -LiteralPath $aleFile -Raw) -match 'Roll_A001')
+    $aleRaw  = if (Test-Path -LiteralPath $aleFile) { Get-Content -LiteralPath $aleFile -Raw } else { '' }
+    $aleExists = ($aleRaw.Length -gt 0) -and $aleRaw.Contains('FPS') -and $aleRaw.Contains('Roll_A001')
     $csvExists = (Test-Path -LiteralPath $csvFile) -and (@(Get-Content -LiteralPath $csvFile).Count -eq 8)
     Assert-Condition `
         -Condition ($aleExists -and $csvExists) `

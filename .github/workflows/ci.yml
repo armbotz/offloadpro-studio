@@ -1,10 +1,13 @@
-name: OffloadPro v3.3 — Pure PowerShell, TDD & DevSecOps CI Gate
+name: OffloadPro v4.0 - Pure PowerShell, TDD & DevSecOps CI Gate
 
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+
+permissions:
+  contents: read
 
 jobs:
   ci-windows-gate:
@@ -13,8 +16,10 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: 1. Zero-Node.js & Privacy Guardrail Gate
+      - name: 1. Zero-Node.js & Privacy Guardrail Gate (Zero Regex)
         shell: pwsh
         run: |
           $forbiddenFiles = @('server.js', 'package.json', 'package-lock.json', '.offloadpro.local.json')
@@ -46,13 +51,13 @@ jobs:
             Write-Host "[OK] AST Verified (PS 5.1): $($s.Name)" -ForegroundColor Green
           }
 
-      - name: 3. Execute 7-Invariant TDD & Mutation Test Suite (PowerShell 7+)
+      - name: 3. Execute 10-Invariant TDD & Mutation Test Suite (PowerShell 7+)
         shell: pwsh
         run: |
           & .\scripts\Invoke-TDDTestSuite.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: 4. Execute 7-Invariant TDD & Mutation Test Suite (Windows PowerShell 5.1)
+      - name: 4. Execute 10-Invariant TDD & Mutation Test Suite (Windows PowerShell 5.1)
         shell: powershell
         run: |
           & .\scripts\Invoke-TDDTestSuite.ps1
