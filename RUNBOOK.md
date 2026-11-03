@@ -1,7 +1,7 @@
-# Operational Runbook & Knowledge Base: OffloadPro DIT Studio v3.0 (Pure PowerShell + Offline Static HTML)
+# Operational Runbook & Knowledge Base: OffloadPro DIT Studio v3.1 (Lead DIT Edition)
 
 **Document ID:** KB-STORAGE-001  
-**Version:** 3.0.0  
+**Version:** 3.1.0  
 **Applies To:** Windows 10 / 11 (PowerShell 5.1+ / 7+), FFmpeg 8+, `exFAT` / `FAT32` Media Cards (Zero Node.js / Zero Server)
 
 ---
@@ -21,10 +21,10 @@
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action Preflight -TargetPath "E:\Backups\Camera_Offload_001"
    ```
 
-### Step 3: Configure & Run the Single-Read Verified Offload
+### Step 3: Configure & Run the Single-Read Verified Offload (With Cart Safety Gates)
 In **Column 2 (ShotPut Pro Single-Read Offload Queue)**:
 1. Configure **Source Card (`D:\`)**, **Primary Destination (`E:\Backups\Camera_Offload_001`)**, optional **Secondary Destination (`F:\Backups\Camera_Mirror_001`)**, **Checksum Algorithm (`SHA256` / `MD5`)**, **macOS Metadata Mode (`forensic_split` / `clean` / `raw`)**, and **Verification Levels 1–3**.
-2. Click **⚡ Generate & Copy Pure PowerShell Offload Command** (or **🚀 Generate High-Speed Robocopy + 3-Level Audit Command**) and paste the command into your standalone PowerShell terminal:
+2. Click **⚡ Generate & Copy Pure PowerShell Offload Command** and paste it into your standalone PowerShell terminal:
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
      -Action Offload `
@@ -34,55 +34,30 @@ In **Column 2 (ShotPut Pro Single-Read Offload Queue)**:
      -MacMode forensic_split `
      -VerifyLevel1 $true -VerifyLevel2 $true -VerifyLevel3 $false
    ```
+   - **Pre-Flight Safety Gates:** Automatically verifies destination free space (`Payload + 5% NTFS headroom`) and checks for roll-name collisions before writing a single byte, then seals 100% of the roll into `<BackupName>.mhl` using the inline RAM hashes.
 
-### Step 4: Generate Certificates & Run Post-Transfer Forensics
-Use the buttons in **Column 3** to copy the exact standalone PowerShell commands for:
-1. **📜 Generate ASC-MHL (`.mhl`) + Offline Visual Contact-Sheet HTML Certificate:**
+### Step 4: 5-Second "Safe to Pull Card" Parity Diff (`Source D:\` vs. `Backup E:\`)
+In **Column 2 (⚖️ 5-Second "Safe to Pull Card" Parity Diff)**:
+1. Click **📂 1. Pick Source (`D:\`)** and select your SD card root.
+2. Click **📂 2. Pick Backup (`E:\`)** and select your destination backup folder.
+3. Confirm the badge lights up **`✓ 100% TREE & BYTE PARITY MATCH — SAFE TO PULL CARD`** (`0 Missing on Backup`, `0 Size Mismatches`, identical `SHA-256` Merkle Roots) before pulling the card to format in-camera.
+
+### Step 5: Full-Roll ASC-MHL Sealing, Bitrot Verification & Post-Transfer Forensics
+Use the buttons in **Column 3** to copy the standalone PowerShell commands or inspect `.mhl` files in your browser:
+1. **📜 Seal 100% Full-Roll ASC-MHL (`.mhl`) + Duration/Codec Certificate (Multi-Threaded):**
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action Certificate -TargetPath "E:\Backups\Camera_Offload_001" -Algorithm SHA256
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action Certificate -TargetPath "E:\Backups\Camera_Offload_001" -Algorithm SHA256 -Threads 6
    ```
-2. **🔍 Extract macOS `._*` AppleDouble Forensic Strings & Preview Tier-2 OS Junk:**
+2. **🛡️ Verify Existing `.MHL` Seal (Multi-Threaded Bitrot & Vault Scrub):**
    ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action VerifyMhl -TargetPath "E:\Backups\Camera_Offload_001" -Threads 6
+   ```
+3. **📄 Inspect `.MHL` XML Ledger in Browser:** Click to select any `.mhl` file and view sealed file counts, byte totals, algorithm, and Merkle seal client-side.
+4. **🔍 Extract macOS `._*` AppleDouble Forensic Strings & Clean Tier-2 OS Junk:**
+   ```powershell
+   # Dry-run preview
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-MacMetadataForensics.ps1 -TargetPath "E:\Backups\Camera_Offload_001"
-   ```
-3. **🗑️ Purge Tier-2 OS Junk (`._*`, `.DS_Store`, `Thumbs.db`) while protecting `.AAE` / `.XMP`:**
-   ```powershell
+
+   # Delete Tier-2 OS junk (._*, .DS_Store, Thumbs.db) while protecting Tier-1 creative sidecars (.AAE/.XMP/.SRT)
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-MacMetadataForensics.ps1 -TargetPath "E:\Backups\Camera_Offload_001" -DeleteJunkAfterDump
    ```
-
----
-
-## Part B: Direct `robocopy` + 3-Level Audit CLI Runbook
-
-### 1. Pre-Flight Drive Check & Sleep Prevention
-```powershell
-Get-PSDrive -PSProvider FileSystem | Select-Object Name,
-    @{N='Used(GB)';E={[math]::Round($_.Used/1GB,2)}},
-    @{N='Free(GB)';E={[math]::Round($_.Free/1GB,2)}},
-    Root
-
-powercfg /change standby-timeout-ac 0
-```
-
-### 2. One-Shot Buffered Offload (`robocopy`)
-> **IMPORTANT:** Always pass `D:\` **without quotes** (`D:\`, not `"D:\"`). In Windows C-runtime argv parsing, `"D:\"` treats `\"` as an escaped quote.
-
-#### Option 1: True Raw Copy (Excludes only system/trash directories)
-```powershell
-robocopy D:\ "E:\Backups\Camera_Offload_001" /E /COPY:DAT /DCOPY:DAT /MT:4 /R:5 /W:3 /XJ /XD "System Volume Information" ".Spotlight-V100" ".Trashes" ".fseventsd" /LOG+:"E:\Backups\Camera_Offload_001_transfer.log" /NP
-attrib -s -h "E:\Backups\Camera_Offload_001"
-```
-
-#### Option 2: Clean Copy (Also excludes macOS `._*` and `.DS_Store` during copy)
-```powershell
-robocopy D:\ "E:\Backups\Camera_Offload_001" /E /COPY:DAT /DCOPY:DAT /MT:4 /R:5 /W:3 /XJ /XD "System Volume Information" ".Spotlight-V100" ".Trashes" ".fseventsd" /XF "._*" ".DS_Store" "Thumbs.db" "desktop.ini" /LOG+:"E:\Backups\Camera_Offload_001_transfer.log" /NP
-attrib -s -h "E:\Backups\Camera_Offload_001"
-```
-
-### 3. Running the 3-Level Integrity Audit via CLI Script
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-3LevelAudit.ps1 `
-    -SourceRoot "D:\" `
-    -DestinationRoot "E:\Backups\Camera_Offload_001" `
-    -Threads 6
-```

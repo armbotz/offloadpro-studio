@@ -1,5 +1,6 @@
 # Local machine private configuration & telemetry (untracked)
 .offloadpro.local.json
+GEMINI.md
 
 # Logs & generated reports
 *.log
