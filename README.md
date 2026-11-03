@@ -1,18 +1,29 @@
-# OffloadPro DIT Studio v3.2 (Lead DIT & Enterprise DevSecOps Edition)
+# OffloadPro DIT Studio v3.3
 
-**ShotPut Pro & Silverstack-Style Media Offload Engine, Multi-Destination Inline Checksum Verifier, 100% Full-Roll Multi-Threaded ASC-MHL Sealer & Bitrot Verifier, 3-Level FFmpeg Stream Validator, and macOS Forensic Toolkit.**
+**Open-Source ShotPut Pro & Silverstack-Style Media Offload Engine, Multi-Destination Inline Checksum Verifier, 100% Full-Roll Multi-Threaded ASC-MHL Sealer & Bitrot Verifier, 3-Level FFmpeg Stream Validator, Sidecar-Glued Date Organizer, and macOS Forensic Toolkit.**
 
-OffloadPro DIT Studio v3.2 is a **100% Pure PowerShell (5.1 & 7+) + Standalone Offline Static HTML** application designed for bulletproof, one-shot archival offloads from large SD / CFexpress / USB media cards (`exFAT` / `FAT32`) to Windows storage volumes (`NTFS`) and Azure Blob Vaults — requiring **zero Node.js runtime, zero npm packages, and zero localhost HTTP servers**.
+> **Mission & Positioning Statement:**  
+> **For** independent filmmakers, on-set Digital Imaging Technicians (DITs), hybrid camera/drone hobbyists, and `/r/DataHoarder` archivers **who** refuse to trust blind drag-and-drop copies with irreplaceable footage—or pay \$150–\$1,500/year for proprietary offload software—**OffloadPro DIT Studio** is a **100% open-source, zero-server, pure PowerShell (5.1 & 7+) + offline static HTML archival engine**.  
+> **Unlike** basic checksum tools that only verify whether a corrupted file on an SD card was copied identically—or Node/Electron apps that expose background servers and `npm` bloat—**OffloadPro** combines **Single-Read Multi-Destination Inline Hashing (`SHA-256`/`MD5`)**, **100% Full-Roll ASC-MHL Sealing**, **3-Level FFmpeg Stream & Keyframe Decoding**, **Sidecar-Glued Date Organization**, **macOS `._*` AppleDouble Forensics**, and **ThinkStats2 ECDF / SHA-256 Merkle Telemetry** in a zero-dependency native Windows toolkit.
 
-Unlike standard checksum-only offload tools that only verify whether a broken file on an SD card was copied identically, OffloadPro combines **3 distinct verification layers** with **100% Full-Roll ASC-MHL sealing**, **5-Second Source vs. Backup Merkle Parity Diff**, **macOS extended attribute (`._*` & `.Spotlight-V100`) forensics**, and **ThinkStats2 ECDF / SHA-256 Merkle telemetry**.
+---
+
+## Built for 4 Core Open-Source Personas
+
+| Persona | Core Workflow in OffloadPro v3.3 |
+| :--- | :--- |
+| **🎬 On-Set DITs & Indie Filmmakers** | Single-read dual-destination inline hashing (`SHA-256`/`MD5`), **5% Free-Space & Roll-Collision Safety Gates**, **100% Full-Roll `.mhl` Sealing**, **Camera Sequence Gap & Orphan Sidecar Detection**, **5-Second Browser Merkle Parity Diff**, and printable Silverstack-style HTML Certificates with `ffprobe` codec/duration telemetry. |
+| **📷 Camera Hobbyists & Drone Pilots** | Explains `exFAT` `128 KB` vs. `NTFS` `4 KB` block slack waste, protects Tier-1 creative sidecars (`.AAE` iOS edits, `.XMP` Lightroom metadata, `.SRT` DJI drone logs, `.CUBE` LUTs), and provides **`-Action OrganizeByDate`** (`YYYY\YYYY-MM-DD`) that keeps Live Photo pairs (`.HEIC`/`.JPG` + `.MOV`) and edited `.AAE`/`.XMP` sidecars glued to their parent capture date. |
+| **🗄️ `/r/DataHoarder` & Archival Data Nerds** | **ThinkStats2 ECDF Quantiles (`P10`–`P99`)**, Pareto Top-10% concentration, Bivariate ETA modeling, **`-Action VerifyMhl`** multi-threaded cold-storage bitrot scrubbing, **`-Action CompareArchives`** cross-drive Merkle parity analysis, and **AzCopy v10** 3-2-1 Azure Blob Archive commands. |
+| **🧪 DevSecOps, Enterprise IT & TDD Contributors** | **Zero Node.js / Zero Server** (`file://` static data bus), native Win32 `SetThreadExecutionState` sleep lock, Windows Event Log integration, deterministic CI exit codes (`0`/`1`), and a 3-second **7-Invariant Local TDD & Bit-Flip Mutation Suite ([`scripts/Invoke-TDDTestSuite.ps1`](./scripts/Invoke-TDDTestSuite.ps1))**. |
 
 ---
 
 ## Key Features
 
-### 1. Single-Read Multi-Destination Inline Hash Engine & Cart Safety Gates (Pure PowerShell / .NET)
+### 1. Single-Read Multi-Destination Inline Hash Engine & Cart Safety Gates
 - **Pre-Flight Cart Safety Gates:**
-  - **5% Free-Space Headroom Gate:** Blocks transfers upfront if any destination drive lacks the required byte payload plus a 5% (minimum `2 GB`) NTFS safety headroom buffer.
+  - **5% Free-Space Headroom Gate:** Blocks transfers upfront if any destination drive lacks the required byte payload plus a 5% NTFS safety headroom buffer.
   - **Roll-Name Collision Guard:** Detects if a destination folder already contains files with identical relative paths but different byte sizes (preventing accidental mixing of Roll A001 and Roll A002).
 - **Single-Read Multi-Destination Streaming:** Reads each 4 MB chunk from the source SD card **only once** into RAM via native `.NET` `[System.IO.FileStream]`, computing cryptographic hashes (`SHA-256`, `MD5`, or `SHA-1`) while simultaneously writing to **primary and secondary backup drives**.
 - **Zero-Re-Read Full-Roll `.mhl` Sealing:** Immediately writes the 100% full-roll `<BackupName>.mhl` XML manifest at the end of the offload using the inline hashes already computed in RAM.
@@ -26,20 +37,21 @@ Unlike standard checksum-only offload tools that only verify whether a broken fi
 | **Vault Scrub** | **`-Action VerifyMhl` Multi-Threaded Bitrot Verifier** | Re-verifies 100% of an archive drive against its sealed `.mhl` XML ledger across 6 threads months or years later to detect silent SSD/HDD sector decay. |
 
 ### 3. 5-Second "Safe to Pull Card" Parity Diff (`Source D:\` vs. `Backup E:\` in Browser)
-- Select **Source (`D:\`)** and **Backup (`E:\`)** directly in `public/index.html` (`webkitdirectory`).
+- Select **Source (`D:\`)** and **Backup (`E:\`)** directly in [`public/index.html`](./public/index.html) (`webkitdirectory`).
 - Automatically filters out Tier-2/Tier-3 OS clutter (`._*`, `.DS_Store`, `.Spotlight-V100`, `.Trashes`, `System Volume Information`), computes both `SHA-256` Tree Structure Merkle Roots client-side via WebCrypto, and verifies `0 missing clips` and `0 byte delta` in under 5 seconds — without printing a single personal filename.
 
-### 4. Hardware Volume Bay, S.M.A.R.T. Telemetry, Write-Protect Lock & `exFAT` Block-Slack X-Ray
-- Auto-detects all mounted Windows drives (`Get-Volume` + `Get-PhysicalDisk`), displaying capacity bars, filesystem type (`exFAT` vs. `NTFS`), hardware allocation unit (cluster) sizes (`128 KB blocks` vs. `4 KB blocks`), Volume Serial Number, and S.M.A.R.T. HealthStatus (`Healthy` / `Warning` / `Unhealthy`).
-- Detects whether the physical SD card Write-Protect Lock switch is **LOCKED (`Read-Only`)** or **UNLOCKED (`Writable`)**.
-- Calculates exact **exFAT 128 KB cluster slack waste** caused by thousands of 4 KB macOS `._*` AppleDouble companion files.
-- Computes **ThinkStats2 ECDF Quantiles (`P50`, `Mean`, `P90`, `P99`, `Max`)**, Pareto Top-10% byte concentration, Bivariate ETA (`T(N, B)`), and a **SHA-256 Tree Structure Merkle Root**.
+### 4. Non-Destructive Sidecar-Glued Date Organizer (`-Action OrganizeByDate`)
+- Organizes camera dumps into clean `YYYY\YYYY-MM-DD` folders (via copy or instant NTFS hardlinks `-UseHardlinks`).
+- **Live-Photo & Edited Sidecar Gluing:** Determines each clip group's canonical capture date from the primary photo/video first, so `.AAE` edits or `.XMP` ratings modified months later stay in the exact same `YYYY\YYYY-MM-DD` folder as their parent `IMG_xxxx.JPG`/`.HEIC`/`.MOV`.
 
-### 5. Silverstack-Style HTML Certificate (`HH:MM:SS` Total Duration, Codec Profiles & Base64 Contact Sheet)
-- Generates a multi-threaded **100% Full-Roll ASC-MHL (`.mhl`)** XML manifest and a dark-mode printable **Camera Roll Verification Certificate (`_Offload_Certificate.html`)** featuring:
-  - Total playable footage duration (`HH:MM:SS`) and capture date window (`YYYY-MM-DD to YYYY-MM-DD`).
-  - Camera codec & resolution breakdown (`HEVC 3840x2160`, `H264 1920x1080`, etc.) via multi-threaded `ffprobe`.
-  - Up to 12 embedded base64 JPEG video keyframes extracted in-memory via `ffmpeg` (100% offline, zero personal filenames exposed).
+---
+
+## Documentation Index
+
+- **[Operational Runbook (`RUNBOOK.md`)](./RUNBOOK.md):** Step-by-step GUI and standalone `robocopy` + PowerShell CLI instructions.
+- **[System Architecture & Math (`ARCHITECTURE.md`)](./ARCHITECTURE.md):** Deep dive into the `file://` Static Data-Bus pattern, Single-Read `.NET` streaming, `exFAT` 128 KB block slack equations, and *ThinkStats2* ECDF / Bivariate ETA models.
+- **[Security, Privacy & Safety Guardrails (`SECURITY_AND_PRIVACY.md`)](./SECURITY_AND_PRIVACY.md):** Zero-Node/Zero-Server architecture, Zero-Knowledge Merkle roots, and TDD privacy invariants.
+- **[MIT License (`LICENSE`)](./LICENSE):** Permissive open-source license.
 
 ---
 
@@ -49,15 +61,29 @@ Unlike standard checksum-only offload tools that only verify whether a broken fi
 offloadpro-studio/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                         # Windows CI/CD gate (Zero-Node check, AST linter & E2E bitrot test)
+│       └── ci.yml                         # Windows CI/CD gate (Zero-Node check, AST linter & 7-test TDD suite)
 ├── public/
 │   ├── index.html                         # Standalone offline static HTML Studio UI (file:// ready, zero server)
 │   └── offloadpro-telemetry.js            # Aggregate telemetry snapshot loaded offline by index.html
 ├── scripts/
-│   ├── Invoke-OffloadProEngine.ps1        # Master PowerShell 5.1/7+ engine (Preflight, Offload, Full-Roll MHL, VerifyMhl)
+│   ├── Invoke-OffloadProEngine.ps1        # Master PowerShell 5.1/7+ engine (Preflight, Offload, MHL, OrganizeByDate)
 │   ├── Invoke-3LevelAudit.ps1             # Multi-threaded PowerShell 3-Level Audit CLI (MD5 + FFprobe + FFmpeg Decode)
-│   └── Invoke-MacMetadataForensics.ps1    # macOS ._* AppleDouble string extractor & Tier-2 OS junk cleaner
-├── Start-OffloadPro-Studio.bat            # 1-Click offline HTML Studio launcher (zero server)
+│   ├── Invoke-MacMetadataForensics.ps1    # macOS ._* AppleDouble string extractor & Tier-2 OS junk cleaner
+│   └── Invoke-TDDTestSuite.ps1            # 7-Invariant Red/Green TDD & Bit-Flip Mutation Test Runner
+├── ARCHITECTURE.md                        # Systems & mathematical architecture deep dive
+├── SECURITY_AND_PRIVACY.md                # Zero-Server, Merkle privacy & cart safety documentation
 ├── RUNBOOK.md                             # Complete operational & CLI runbook / KB article
+├── LICENSE                                # MIT Open-Source License
+├── Start-OffloadPro-Studio.bat            # 1-Click offline HTML Studio launcher (zero server)
 └── .gitignore                             # Git ignore rules
+```
+
+---
+
+## Running the Local 7-Invariant TDD & Mutation Test Suite
+
+Verify all offload, sidecar taxonomy, full-roll `.mhl` sealing, 1-bit corruption detection, roll-collision blocking, sidecar-glued date organization, and zero-PII `stdout` invariants in 3 seconds:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-TDDTestSuite.ps1
 ```

@@ -1,4 +1,4 @@
-name: OffloadPro v3.2 — Pure PowerShell & DevSecOps CI Gate
+name: OffloadPro v3.3 — Pure PowerShell, TDD & DevSecOps CI Gate
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   ci-windows-gate:
-    name: Windows PowerShell 5.1 & 7+ E2E Verification
+    name: Windows PowerShell 5.1 & 7+ TDD & Privacy Verification
     runs-on: windows-latest
     steps:
       - name: Checkout Repository
@@ -45,52 +45,14 @@ jobs:
             Write-Host "✓ AST Verified: $($s.Name)" -ForegroundColor Green
           }
 
-      - name: 3. End-to-End Synthetic Camera Roll Offload, Full-Roll MHL Seal & Bitrot Detection Test (PS 7+)
+      - name: 3. Execute 7-Invariant TDD & Mutation Test Suite (PowerShell 7+)
         shell: pwsh
         run: |
-          $tempRoot = Join-Path $env:RUNNER_TEMP "OffloadPro_CI_$([guid]::NewGuid().ToString('N'))"
-          $mockSd   = Join-Path $tempRoot "MockSD"
-          $dcim     = Join-Path $mockSd "DCIM\100MEDIA"
-          $backup1  = Join-Path $tempRoot "Backups\Roll_A001"
-          [void][System.IO.Directory]::CreateDirectory($dcim)
+          & .\scripts\Invoke-TDDTestSuite.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          # Create synthetic camera roll: valid PDF document + protected .AAE sidecar + macOS ._* AppleDouble clutter
-          [System.IO.File]::WriteAllText((Join-Path $dcim "C0001_CAMERA_LOG.pdf"), "%PDF-1.7`nSynthetic Camera Roll Test Payload")
-          [System.IO.File]::WriteAllText((Join-Path $dcim "IMG_0001.AAE"), "<plist>Protected iOS Edit Sidecar</plist>")
-          [System.IO.File]::WriteAllBytes((Join-Path $dcim "._IMG_0001.AAE"), ([byte[]](0..63)))
-
-          # Step A: Run Preflight X-Ray
-          & .\scripts\Invoke-OffloadProEngine.ps1 -Action Preflight -TargetPath $mockSd
-          if ($LASTEXITCODE -ne 0) { throw "Preflight exited with code $LASTEXITCODE" }
-
-          # Step B: Run Single-Read Offload with Forensic Split & Full-Roll MHL Sealing
-          & .\scripts\Invoke-OffloadProEngine.ps1 `
-            -Action Offload `
-            -SourceRoot $mockSd `
-            -DestinationRoot $backup1 `
-            -Algorithm SHA256 `
-            -MacMode forensic_split `
-            -VerifyLevel1 $true -VerifyLevel2 $true -VerifyLevel3 $false `
-            -Threads 2
-          if ($LASTEXITCODE -ne 0) { throw "Offload exited with code $LASTEXITCODE" }
-
-          # Verify Tier-1 .AAE protected in main backup & Tier-2 ._* routed to _forensics
-          if (-not (Test-Path -LiteralPath (Join-Path $backup1 "DCIM\100MEDIA\IMG_0001.AAE"))) {
-            throw "Tier-1 Creative Sidecar (.AAE) was not preserved in primary backup!"
-          }
-          if (-not (Test-Path -LiteralPath (Join-Path "${backup1}_forensics" "DCIM\100MEDIA\._IMG_0001.AAE"))) {
-            throw "Tier-2 macOS AppleDouble (._*) was not routed to _forensics!"
-          }
-
-          # Step C: Verify MHL Bitrot Scrubber passes (ExitCode == 0)
-          & .\scripts\Invoke-OffloadProEngine.ps1 -Action VerifyMhl -TargetPath $backup1 -Threads 2
-          if ($LASTEXITCODE -ne 0) { throw "VerifyMhl failed on clean backup!" }
-
-          # Step D: Inject 1-byte bitrot into backup file and assert VerifyMhl exits with non-zero code (1)
-          [System.IO.File]::AppendAllText((Join-Path $backup1 "DCIM\100MEDIA\C0001_CAMERA_LOG.pdf"), "X")
-          & .\scripts\Invoke-OffloadProEngine.ps1 -Action VerifyMhl -TargetPath $backup1 -Threads 2
-          if ($LASTEXITCODE -eq 0) {
-            throw "VerifyMhl failed to return non-zero exit code when bitrot was injected!"
-          }
-          Write-Host "✓ E2E Offload, Forensic Split, Full-Roll MHL Seal & Bitrot Exit-Code Gate Verified." -ForegroundColor Green
-          Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+      - name: 4. Execute 7-Invariant TDD & Mutation Test Suite (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          & .\scripts\Invoke-TDDTestSuite.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

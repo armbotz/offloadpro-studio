@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-    OffloadPro DIT Studio v3.2 — Pure PowerShell Single-Read Multi-Destination Offload,
-    Pre-Flight ECDF/Merkle X-Ray, S.M.A.R.T. Volume Bay, Full-Roll Multi-Threaded ASC-MHL Sealer,
-    MHL Bitrot Verifier, Win32 Sleep Guard, and Silverstack-Style Offline Contact-Sheet Generator.
+    OffloadPro DIT Studio v3.3 — Pure PowerShell Single-Read Multi-Destination Offload,
+    Pre-Flight ECDF/Merkle/Gap X-Ray, S.M.A.R.T. Volume Bay, Full-Roll Multi-Threaded ASC-MHL Sealer,
+    MHL Bitrot Verifier, Sidecar-Glued Date Organizer, Cross-Archive Comparator & Win32 Sleep Guard.
 .DESCRIPTION
     100% Native PowerShell 5.1 & PowerShell 7+ (.NET Framework 4.8 & .NET 8/9) compatible engine
     requiring zero Node.js runtime, zero npm packages, and zero localhost HTTP servers.
@@ -10,7 +10,7 @@
 #>
 param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet('Preflight', 'Offload', 'Certificate', 'VerifyMhl', 'ExportTelemetry')]
+    [ValidateSet('Preflight', 'Offload', 'Certificate', 'VerifyMhl', 'OrganizeByDate', 'CompareArchives', 'ExportTelemetry')]
     [string]$Action = 'Preflight',
 
     [Parameter(Mandatory = $false)]
@@ -43,6 +43,9 @@ param(
     [switch]$AllowOverwrite,
 
     [Parameter(Mandatory = $false)]
+    [switch]$UseHardlinks,
+
+    [Parameter(Mandatory = $false)]
     [bool]$VerifyLevel1 = $true,
 
     [Parameter(Mandatory = $false)]
@@ -63,7 +66,6 @@ $TelemetryJsPath = Join-Path $RepoRoot 'public\offloadpro-telemetry.js'
 $CreativeSidecarExts = @('.aae', '.xmp', '.xml', '.bim', '.cpi', '.mpl', '.srt', '.vtt', '.cube', '.3dl', '.thm', '.lrv')
 $OsJunkNames         = @('.ds_store', 'thumbs.db', 'desktop.ini')
 
-# Win32 Kernel32 SetThreadExecutionState Awake Lock (prevents AC/DC standby & USB selective suspend during offload/audit)
 function Set-ExecutionAwakeLock {
     param([bool]$Enable)
     try {
@@ -73,8 +75,8 @@ function Set-ExecutionAwakeLock {
                 public static extern uint SetThreadExecutionState(uint esFlags);
 '@ -ErrorAction SilentlyContinue
         }
-        $ES_CONTINUOUS      = [uint32]2147483648 # 0x80000000
-        $ES_SYSTEM_REQUIRED = [uint32]1          # 0x00000001
+        $ES_CONTINUOUS      = [uint32]2147483648
+        $ES_SYSTEM_REQUIRED = [uint32]1
         if ($Enable) {
             [void][OffloadPro.PowerGuard]::SetThreadExecutionState($ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED)
         } else {
@@ -83,7 +85,6 @@ function Set-ExecutionAwakeLock {
     } catch {}
 }
 
-# PowerShell 5.1 (.NET Framework) + PowerShell 7+ (.NET 8/9) Compatible Hash Factory (avoids SYSLIB0045 deprecation)
 function New-CryptoHasher {
     param([string]$HashAlgorithm)
     switch ($HashAlgorithm.ToUpperInvariant()) {
@@ -93,7 +94,6 @@ function New-CryptoHasher {
     }
 }
 
-# Optional Enterprise Windows Event Log Telemetry (silently no-ops if non-admin or source unregistered)
 function Write-OffloadEventLog {
     param([int]$EventId, [string]$EntryType = 'Information', [string]$Message)
     try {
@@ -210,7 +210,9 @@ function Invoke-PreflightScan {
         realFilesBytes           = [int64]0
         creativeSidecarsCount    = 0
         creativeSidecarsBytes    = [int64]0
+        orphanSidecarsCount      = 0
         livePhotoPairsCount      = 0
+        sequenceGapCount         = 0
         spannedClipGroupsCount   = 0
         spanGapWarnings          = @()
         sameSizeDuplicateCount   = 0
@@ -246,6 +248,7 @@ function Invoke-PreflightScan {
     $sizeCounts = @{}
     $treeLeaves = New-Object 'System.Collections.Generic.List[string]'
     $dirBaseMap = @{}
+    $seqMap     = @{}
 
     $allFiles = @(Get-ChildItem -LiteralPath $ScanPath -File -Recurse -Force -ErrorAction SilentlyContinue |
         Where-Object { -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) })
@@ -300,17 +303,52 @@ function Invoke-PreflightScan {
             $result.extensions[$ext].count++
             $result.extensions[$ext].bytes += $f.Length
 
-            $baseKey = "$($f.DirectoryName)\$($f.BaseName.ToLowerInvariant())"
+            $baseLower = $f.BaseName.ToLowerInvariant()
+            $baseKey = "$($f.DirectoryName)\$baseLower"
             if (-not $dirBaseMap.ContainsKey($baseKey)) {
                 $dirBaseMap[$baseKey] = New-Object 'System.Collections.Generic.HashSet[string]'
             }
             [void]$dirBaseMap[$baseKey].Add($ext)
+
+            # Track camera clip numbering sequences per folder (e.g. C0001.MP4, IMG_1042.JPG, DSC00123.ARW)
+            if (-not ($CreativeSidecarExts -contains $ext) -and $baseLower -match '^([a-z_]+?)(\d{3,6})$') {
+                $seqKey = "$($f.DirectoryName)\$($Matches[1])$ext"
+                if (-not $seqMap.ContainsKey($seqKey)) {
+                    $seqMap[$seqKey] = New-Object 'System.Collections.Generic.List[int]'
+                }
+                $seqMap[$seqKey].Add([int]$Matches[2])
+            }
         }
     }
 
+    # Check Live Photo pairs and Orphan Creative Sidecars
     foreach ($extSet in $dirBaseMap.Values) {
         if ($extSet.Contains('.mov') -and ($extSet.Contains('.heic') -or $extSet.Contains('.jpg') -or $extSet.Contains('.jpeg'))) {
             $result.livePhotoPairsCount++
+        }
+        $hasPrimaryMedia = $false
+        $sidecarsInGroup = 0
+        foreach ($e in $extSet) {
+            if ($CreativeSidecarExts -contains $e) {
+                if ($e -ne '.cube' -and $e -ne '.3dl') { $sidecarsInGroup++ }
+            } else {
+                $hasPrimaryMedia = $true
+            }
+        }
+        if (-not $hasPrimaryMedia -and $sidecarsInGroup -gt 0) {
+            $result.orphanSidecarsCount += $sidecarsInGroup
+        }
+    }
+
+    # Check Camera Sequence Numbering Gaps
+    foreach ($numList in $seqMap.Values) {
+        if ($numList.Count -gt 1) {
+            $uniqueSorted = @($numList | Sort-Object -Unique)
+            for ($i = 1; $i -lt $uniqueSorted.Count; $i++) {
+                if ($uniqueSorted[$i] -gt ($uniqueSorted[$i - 1] + 1)) {
+                    $result.sequenceGapCount += ($uniqueSorted[$i] - $uniqueSorted[$i - 1] - 1)
+                }
+            }
         }
     }
 
@@ -488,7 +526,6 @@ function New-MhlAndCertificate {
         } finally { $sha.Dispose() }
     }
 
-    # 1. Seal 100% of Roll Files into ASC-MHL (PS 5.1 & PS 7+ .NET 8/9 compatible)
     Write-Host "[ASC-MHL SEALER] Sealing 100% of roll ($($files.Count) files) with $HashAlgorithm..." -ForegroundColor Cyan
     $mhlEntries = New-Object 'System.Collections.Generic.List[object]'
     $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads)
@@ -540,8 +577,8 @@ function New-MhlAndCertificate {
 <?xml version="1.0" encoding="UTF-8"?>
 <hashlist version="1.1">
   <creatorinfo>
-    <name>OffloadPro DIT Studio v3.2 (Pure PowerShell Full-Roll Sealer)</name>
-    <version>3.2.0</version>
+    <name>OffloadPro DIT Studio v3.3 (Pure PowerShell Full-Roll Sealer)</name>
+    <version>3.3.0</version>
     <creationdate>$nowIso</creationdate>
     <merkle_tree_sha256>$merkleRoot</merkle_tree_sha256>
   </creatorinfo>
@@ -550,7 +587,6 @@ $mhlNodes
 "@
     Set-Content -LiteralPath $mhlPath -Value $mhlXml -Encoding UTF8
 
-    # 2. Gather Silverstack-Style Camera Codec, Resolution & Total Footage Duration via FFprobe
     $ffprobeCmd = (Get-Command ffprobe -ErrorAction SilentlyContinue).Source
     $totalDurationSec = 0.0
     $codecProfiles = @{}
@@ -605,7 +641,6 @@ $mhlNodes
         "$($minDateUtc.ToString('yyyy-MM-dd')) to $($maxDateUtc.ToString('yyyy-MM-dd'))"
     } else { 'N/A' }
 
-    # 3. Extract up to 12 embedded base64 keyframes via ffmpeg in-memory (privacy-safe)
     $ffmpegCmd = (Get-Command ffmpeg -ErrorAction SilentlyContinue).Source
     $thumbCards = New-Object 'System.Collections.Generic.List[string]'
     if ($ffmpegCmd) {
@@ -668,7 +703,7 @@ $mhlNodes
   <div class="card">
     <div class="header">
       <div>
-        <h1 style="margin:0;font-size:24px;">OffloadPro DIT Studio v3.2 — Camera Roll Verification Certificate</h1>
+        <h1 style="margin:0;font-size:24px;">OffloadPro DIT Studio v3.3 — Camera Roll Verification Certificate</h1>
         <p style="margin:6px 0 0;color:#94a3b8;">Generated: $nowIso | Capture Window: $dateRangeFormatted</p>
       </div>
       <div class="stamp">✓ 100% FULL-ROLL ASC-MHL SEALED</div>
@@ -718,7 +753,7 @@ function Invoke-VerifyMhlLedger {
     [xml]$xmlDoc = Get-Content -LiteralPath $resolvedMhl -Raw -Encoding UTF8
     $nodes = @($xmlDoc.hashlist.hash)
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "OffloadPro v3.2 Vault & Bitrot MHL Verifier — Entries: $($nodes.Count)" -ForegroundColor Cyan
+    Write-Host "OffloadPro v3.3 Vault & Bitrot MHL Verifier — Entries: $($nodes.Count)" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Cyan
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -792,6 +827,87 @@ function Invoke-VerifyMhlLedger {
     }
 }
 
+# Persona 2 (Camera Hobbyist / Hybrid Shooter): Non-Destructive Date Organizer that glues Live Photos & Creative Sidecars to Parent Media Date
+function Invoke-OrganizeByDate {
+    param(
+        [string]$SourceArchive,
+        [string]$OrganizedRoot,
+        [switch]$CreateHardlinks
+    )
+    $safeSrc = Assert-SafeTargetPath -InputPath $SourceArchive -IsMutating $false
+    $safeDst = Assert-SafeTargetPath -InputPath $OrganizedRoot -IsMutating $true
+
+    $files = @(Get-ChildItem -LiteralPath $safeSrc -File -Recurse -Force -ErrorAction SilentlyContinue |
+        Where-Object {
+            -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -and
+            -not $_.Name.StartsWith('._') -and
+            ($OsJunkNames -notcontains $_.Name.ToLowerInvariant()) -and
+            $_.FullName -notmatch '(?i)\\(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
+        })
+
+    # Pass 1: Determine canonical capture date per (Directory + BaseName) from primary media first (so edited .AAE/.XMP sidecars stay glued to photo date)
+    $groupDateMap = @{}
+    foreach ($f in $files) {
+        $ext = if ($f.Extension) { $f.Extension.ToLowerInvariant() } else { '' }
+        $key = "$($f.DirectoryName)\$($f.BaseName.ToLowerInvariant())"
+        $isSidecar = $CreativeSidecarExts -contains $ext
+        if (-not $isSidecar) {
+            if (-not $groupDateMap.ContainsKey($key) -or $f.LastWriteTimeUtc -lt $groupDateMap[$key]) {
+                $groupDateMap[$key] = $f.LastWriteTimeUtc
+            }
+        }
+    }
+    foreach ($f in $files) {
+        $key = "$($f.DirectoryName)\$($f.BaseName.ToLowerInvariant())"
+        if (-not $groupDateMap.ContainsKey($key)) {
+            $groupDateMap[$key] = $f.LastWriteTimeUtc
+        }
+    }
+
+    # Pass 2: Copy or Hardlink into YYYY\YYYY-MM-DD buckets
+    $organizedCount = 0
+    $bucketSet = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($f in $files) {
+        $key = "$($f.DirectoryName)\$($f.BaseName.ToLowerInvariant())"
+        $dt  = $groupDateMap[$key]
+        $yearFolder = $dt.ToString('yyyy')
+        $dayFolder  = $dt.ToString('yyyy-MM-dd')
+        $bucketDir  = Join-Path (Join-Path $safeDst $yearFolder) $dayFolder
+        [void]$bucketSet.Add("$yearFolder\$dayFolder")
+
+        if (-not (Test-Path -LiteralPath $bucketDir)) {
+            [void][System.IO.Directory]::CreateDirectory($bucketDir)
+        }
+        $targetFile = Join-Path $bucketDir $f.Name
+        if ($CreateHardlinks) {
+            if (Test-Path -LiteralPath $targetFile) { Remove-Item -LiteralPath $targetFile -Force }
+            [void](New-Item -ItemType HardLink -Path $targetFile -Target $f.FullName)
+        } else {
+            [System.IO.File]::Copy($f.FullName, $targetFile, $true)
+            [System.IO.File]::SetCreationTimeUtc($targetFile, $f.CreationTimeUtc)
+            [System.IO.File]::SetLastWriteTimeUtc($targetFile, $f.LastWriteTimeUtc)
+        }
+        $organizedCount++
+    }
+
+    Write-Host "[ORGANIZE BY DATE COMPLETE] Organized $organizedCount files across $($bucketSet.Count) date bucket(s) (Live Photos & .AAE/.XMP sidecars glued)." -ForegroundColor Green
+}
+
+# Persona 3 (Data Hoarder / Archival Nerd): Cross-Archive Merkle & Duplicate Comparator
+function Invoke-CompareArchives {
+    param([string]$ArchiveA, [string]$ArchiveB)
+    $scanA = Invoke-PreflightScan -ScanPath $ArchiveA
+    $scanB = Invoke-PreflightScan -ScanPath $ArchiveB
+    $exactParity = ($scanA.merkleStructureRoot -eq $scanB.merkleStructureRoot) -and ($null -ne $scanA.merkleStructureRoot)
+    $color = if ($exactParity) { 'Green' } else { 'Yellow' }
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "OffloadPro v3.3 Cross-Archive Merkle & Parity Comparator" -ForegroundColor Cyan
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "Archive A Real Files : $($scanA.realFilesCount) ($([Math]::Round($scanA.realFilesBytes / 1GB, 3)) GB) | Merkle: $($scanA.merkleStructureRoot)"
+    Write-Host "Archive B Real Files : $($scanB.realFilesCount) ($([Math]::Round($scanB.realFilesBytes / 1GB, 3)) GB) | Merkle: $($scanB.merkleStructureRoot)"
+    Write-Host "100% Merkle Parity   : $exactParity" -ForegroundColor $color
+}
+
 Set-ExecutionAwakeLock -Enable $true
 try {
     switch ($Action) {
@@ -799,11 +915,12 @@ try {
             $vols = Get-MountedVolumesTelemetry
             $scan = Invoke-PreflightScan -ScanPath $TargetPath
             Write-Host "================================================================" -ForegroundColor Cyan
-            Write-Host "OffloadPro v3.2 Pre-Flight X-Ray (Pure PowerShell)" -ForegroundColor Cyan
+            Write-Host "OffloadPro v3.3 Pre-Flight X-Ray (Pure PowerShell)" -ForegroundColor Cyan
             Write-Host "================================================================" -ForegroundColor Cyan
             Write-Host "Mounted Volumes Detected : $($vols.Count)"
             Write-Host "Real Media/User Files    : $($scan.realFilesCount) ($([Math]::Round($scan.realFilesBytes / 1GB, 3)) GB)"
-            Write-Host "Protected Sidecars       : $($scan.creativeSidecarsCount) | Live Photo Pairs: $($scan.livePhotoPairsCount)"
+            Write-Host "Protected Sidecars       : $($scan.creativeSidecarsCount) | Live Photo Pairs: $($scan.livePhotoPairsCount) | Orphan Sidecars: $($scan.orphanSidecarsCount)"
+            Write-Host "Sequence Numbering Gaps  : $($scan.sequenceGapCount)"
             Write-Host "macOS ._* 4KB Sidecars   : $($scan.macAppleDoubleCount) ($([Math]::Round($scan.macAppleDoubleBytes / 1MB, 2)) MB)"
             Write-Host "exFAT 128KB Slack Waste  : ~$([Math]::Round($scan.estimatedExfatSlackBytes / 1MB, 1)) MB"
             if ($scan.merkleStructureRoot) {
@@ -846,7 +963,6 @@ try {
                 }
             })
 
-            # Run Lead DIT Pre-Flight Cart Safety Gates (5% Free-Space Headroom + Roll Collision Guard)
             Assert-DestinationSafetyGates -DestinationRoots $dstRoots -QueueItems $queue -AllowRollOverwrite:$AllowOverwrite
 
             if ($RescueMode) {
@@ -887,7 +1003,6 @@ try {
             $traffic = if ($mismatches -gt 0) { 'RED_ERRORS' } elseif ($dstRoots.Count -ge 2) { 'GREEN_321_VERIFIED' } else { 'AMBER_SINGLE_COPY' }
             Write-Host "[OFFLOAD COMPLETE] $copied/$($queue.Count) files | Level 1 Hash Mismatches: $mismatches | Status: $traffic" -ForegroundColor Green
 
-            # Seal 100% Full-Roll ASC-MHL + Certificate immediately using already-computed inline hashes
             foreach ($r in $dstRoots) {
                 New-MhlAndCertificate -ArchivePath $r -HashAlgorithm $Algorithm -PrecomputedHashes $inlineHashes -MaxThreads $Threads
             }
@@ -909,6 +1024,12 @@ try {
         }
         'VerifyMhl' {
             Invoke-VerifyMhlLedger -ArchivePath $TargetPath -ExplicitMhlPath $MhlPath -MaxThreads $Threads
+        }
+        'OrganizeByDate' {
+            Invoke-OrganizeByDate -SourceArchive $SourceRoot -OrganizedRoot $DestinationRoot -CreateHardlinks:$UseHardlinks
+        }
+        'CompareArchives' {
+            Invoke-CompareArchives -ArchiveA $SourceRoot -ArchiveB $DestinationRoot
         }
     }
 } finally {

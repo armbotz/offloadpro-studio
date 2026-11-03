@@ -521,6 +521,12 @@
           <button class="btn btn-secondary" style="border-color:#a855f7;color:#d8b4fe;" onclick="buildAzCopyCloudVaultCmd()">
             ☁️ 3-2-1 Azure Blob Vault (AzCopy v10)
           </button>
+          <button class="btn btn-secondary" style="border-color:#38bdf8;color:#38bdf8;" onclick="buildOrganizeByDateCmd()">
+            🗂️ Organize by Date (YYYY\YYYY-MM-DD • Glues .AAE & Live Photos)
+          </button>
+          <button class="btn btn-secondary" style="border-color:#10b981;color:#34d399;" onclick="buildTddSuiteCmd()">
+            🧪 Run 7-Test Local TDD Suite
+          </button>
           <button class="btn btn-secondary" onclick="extractForensics()">
             🔍 Reverse-Engineer macOS ._* Metadata Strings
           </button>
@@ -730,6 +736,10 @@
           <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
             <span>Protected Creative Sidecars (<code>.AAE/.XMP</code>):</span>
             <strong style="color:#34d399">${s.creativeSidecarsCount || 0} files • ${s.livePhotoPairsCount || 0} Live Photo pairs</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span>Camera Sequence Gaps & Orphan Sidecars:</span>
+            <strong style="color:${(s.sequenceGapCount || s.orphanSidecarsCount) ? '#fbbf24' : '#34d399'}">${s.sequenceGapCount || 0} sequence gaps • ${s.orphanSidecarsCount || 0} orphan sidecars</strong>
           </div>
           <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
             <span>Same-Size Intra-Archive Duplicates:</span>
@@ -1166,6 +1176,17 @@
       const targetPath = document.getElementById('preflightPath').value.trim();
       const cmd = `# 3-2-1 Off-Site Cloud Copy #3: Push verified roll + .mhl seal to Azure Blob Archive/Cool Tier with inline MD5 check\nazcopy copy "${targetPath}" "https://<STORAGE_ACCOUNT>.blob.core.windows.net/camera-vault?<SAS_TOKEN>" --recursive=true --put-md5 --block-blob-tier=Cool --exclude-pattern="._*;*.DS_Store;Thumbs.db"`;
       setCommandDock('☁️ Azure Blob Storage 3-2-1 Off-Site Cloud Vault (AzCopy v10):', cmd, true);
+    }
+
+    function buildOrganizeByDateCmd() {
+      const targetPath = document.getElementById('preflightPath').value.trim();
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-OffloadProEngine.ps1 -Action OrganizeByDate -SourceRoot "${targetPath}" -DestinationRoot "${targetPath}_Organized_By_Date"`;
+      setCommandDock('🗂️ Non-Destructive Date Organizer (YYYY\\YYYY-MM-DD • Glues Live Photos & .AAE/.XMP Sidecars):', cmd, true);
+    }
+
+    function buildTddSuiteCmd() {
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-TDDTestSuite.ps1`;
+      setCommandDock('🧪 Execute 7-Invariant Local TDD & Bit-Flip Mutation Test Suite:', cmd, true);
     }
 
     function extractForensics() {
