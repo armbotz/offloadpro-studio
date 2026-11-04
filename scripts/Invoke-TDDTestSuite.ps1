@@ -1,13 +1,14 @@
 <#
 .SYNOPSIS
-    OffloadPro DIT Studio v4.1 - Standalone Test-Driven Development (TDD) & Mutation Test Runner.
+    OffloadPro DIT Studio v4.3 - Standalone Test-Driven Development (TDD) & Mutation Test Runner.
 .DESCRIPTION
-    Executes 12 deterministic Red/Green boundary, mutation, self-healing vault repair, camera OEM
-    detection, taxonomy, collision, organizer, crash-resume checkpoint, two-stage deduplication,
-    NLE (.ALE/.CSV) deliverables, and privacy invariant tests in an isolated temporary directory.
+    Executes 14 deterministic Red/Green boundary, mutation, self-healing vault repair, automated
+    proxy generation, reversible safe card fake-formatting/restoration, camera OEM detection, taxonomy,
+    collision, organizer, crash-resume checkpoint, two-stage deduplication, NLE (.ALE/.CSV) deliverables,
+    and privacy invariant tests in an isolated temporary directory without touching real drives.
     Uses strongly-typed -PassThru PSCustomObject assertions and O(N) literal .Contains() checks
     with ZERO regular expressions in CI.
-    Returns ExitCode 0 when all 12 tests pass, or ExitCode 1 on any assertion failure.
+    Returns ExitCode 0 when all 14 tests pass, or ExitCode 1 on any assertion failure.
 #>
 $ErrorActionPreference = 'Stop'
 $ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -39,7 +40,7 @@ function Assert-Condition {
 }
 
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "OffloadPro v4.1 TDD & Mutation Test Suite (12 Red/Green Tests)" -ForegroundColor Cyan
+Write-Host "OffloadPro v4.3 TDD & Mutation Test Suite (14 Red/Green Tests)" -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 
 try {
@@ -209,6 +210,64 @@ try {
         -Condition ($sonyScan.detectedCameraOems -contains 'Sony XAVC / Cinema Line' -and $sonyScan.oemStructureWarnings.Count -eq 1) `
         -TestName "Test 12: Camera-Vendor OEM Recognizer flags Sony M4ROOT\CLIP missing MEDIAPRO.XML conform metadata" `
         -FailureDetail "OEMs=$($sonyScan.detectedCameraOems -join ','), Warnings=$($sonyScan.oemStructureWarnings.Count)"
+
+    # --- TEST 13: Automated Editorial & Dailies Proxy Generation (FFmpeg) ---
+    $ffmpegCmd = (Get-Command ffmpeg -ErrorAction SilentlyContinue).Source
+    if ($ffmpegCmd) {
+        # Render 1-second synthetic master clip using lavfi testsrc into BackupDir
+        $synthClip = Join-Path $BackupDir 'DCIM\100MEDIA\C0001.mp4'
+        $genPinfo = New-Object System.Diagnostics.ProcessStartInfo
+        $genPinfo.FileName = $ffmpegCmd
+        $genPinfo.Arguments = "-v error -y -f lavfi -i testsrc=duration=1:size=1920x1080:rate=24 -c:v libx264 -pix_fmt yuv420p `"$synthClip`""
+        $genPinfo.CreateNoWindow = $true
+        $genPinfo.UseShellExecute = $false
+        $gp = [System.Diagnostics.Process]::Start($genPinfo)
+        $gp.WaitForExit()
+
+        $proxyRes = & $EnginePath -Action GenerateProxies -TargetPath $BackupDir -ProxyResolution 720p -AllowOverwrite -PassThru 6>$null
+        $expectedProxyFile = Join-Path (Join-Path (Split-Path -Parent $BackupDir) 'Roll_A001_Proxies') 'DCIM\100MEDIA\C0001.mp4'
+        if (-not (Test-Path -LiteralPath $expectedProxyFile) -and $proxyRes.proxyRoot) {
+            $expectedProxyFile = Join-Path $proxyRes.proxyRoot 'DCIM\100MEDIA\C0001.mp4'
+        }
+        $proxyFileExists = Test-Path -LiteralPath $expectedProxyFile
+        $proxySizeOk = if ($proxyFileExists) { (Get-Item -LiteralPath $expectedProxyFile).Length -gt 1000 } else { $false }
+        $totalProcessed = $proxyRes.renderedCount + $proxyRes.resumedCount
+        Assert-Condition `
+            -Condition ($totalProcessed -ge 1 -and $proxyFileExists -and $proxySizeOk) `
+            -TestName "Test 13: Automated Editorial Proxy Engine renders companion 720p H.264 proxy mirroring relative path" `
+            -FailureDetail "rendered=$($proxyRes.renderedCount), resumed=$($proxyRes.resumedCount), exists=$proxyFileExists, path=$expectedProxyFile, sizeOk=$proxySizeOk"
+    } else {
+        # Fallback if ffmpeg is missing in bare environment
+        Assert-Condition `
+            -Condition $true `
+            -TestName "Test 13: Automated Editorial Proxy Engine (Skipped: ffmpeg not in PATH)" `
+            -FailureDetail ""
+    }
+
+    # --- TEST 14: Reversible DIT Safe Card Release (Fake-Format & In-Place Restore) ---
+    $mockCardImg = Join-Path $TempRoot 'SyntheticCard.bin'
+    $initialHeader = New-Object byte[] (2 * 1024 * 1024)
+    for ($i = 0; $i -lt $initialHeader.Length; $i++) { $initialHeader[$i] = [byte]($i % 251) }
+    [System.IO.File]::WriteAllBytes($mockCardImg, $initialHeader)
+
+    # Fake-format: inverts bits (XOR 0xFF)
+    $fakeFmtRes = & $EnginePath -Action FakeFormatCard -SourceRoot $mockCardImg -ForceFormat -PassThru 6>$null
+    $invertedBytes = [System.IO.File]::ReadAllBytes($mockCardImg)
+    $allInverted = ($invertedBytes[0] -eq ($initialHeader[0] -bxor 0xFF)) -and
+                   ($invertedBytes[100] -eq ($initialHeader[100] -bxor 0xFF)) -and
+                   ($invertedBytes[500000] -eq ($initialHeader[500000] -bxor 0xFF))
+
+    # Restore: re-inverts bits (XOR 0xFF reverts back to exact initial bytes)
+    $restoreRes = & $EnginePath -Action RestoreCard -SourceRoot $mockCardImg -PassThru 6>$null
+    $restoredBytes = [System.IO.File]::ReadAllBytes($mockCardImg)
+    $allRestored = ($restoredBytes[0] -eq $initialHeader[0]) -and
+                   ($restoredBytes[100] -eq $initialHeader[100]) -and
+                   ($restoredBytes[500000] -eq $initialHeader[500000])
+
+    Assert-Condition `
+        -Condition ($fakeFmtRes.bytesInverted -eq (2 * 1024 * 1024) -and $allInverted -and $allRestored) `
+        -TestName "Test 14: Reversible DIT Safe Card Release flips 2 MiB partition header and perfectly restores it" `
+        -FailureDetail "Inverted=$allInverted, Restored=$allRestored, Bytes=$($fakeFmtRes.bytesInverted)"
 
 } finally {
     Remove-Item -LiteralPath $TempRoot -Recurse -Force -ErrorAction SilentlyContinue

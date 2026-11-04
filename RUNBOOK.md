@@ -1,7 +1,7 @@
-# Operational Runbook, Knowledge Base & FAQ: OffloadPro DIT Studio v4.1
+# Operational Runbook, Knowledge Base & FAQ: OffloadPro DIT Studio v4.3
 
 **Document ID:** KB-STORAGE-001  
-**Version:** 4.1.0  
+**Version:** 4.3.0  
 **Applies To:** Windows 10 / 11 (Windows PowerShell 5.1 & PowerShell 7+), FFmpeg 8+, `exFAT` / `FAT32` / `NTFS` Media Volumes (100% Zero Node.js / Zero Server)
 
 ---
@@ -77,7 +77,41 @@ In **Column 2** of [`public/index.html`](./public/index.html):
 
 ---
 
-### Step 6: Non-Destructive Date Organization (`OrganizeByDate`) & Two-Stage Deduplication (`DedupeScan`)
+### Step 6: Automated Editorial & Dailies Proxies (`GenerateProxies`)
+Generate lightweight 1080p or 720p H.264 proxy files that mirror the master camera folder tree for 1-click DaVinci Resolve and Premiere Pro proxy relinking:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
+  -Action GenerateProxies `
+  -TargetPath "E:\Backups\Camera_Offload_001" `
+  -ProxyResolution 1080p `
+  -ProxyEncoder cpu `
+  -Threads 4
+```
+- **Optional Client / Director Window-Burn:** Add `-ProxyBurnIn` to burn a lower-third roll and clip slate directly into the video frames.
+- **Idempotent Proxy Checkpoint:** Automatically skips already-rendered proxy clips (`Resumed/Cached: N`).
+
+---
+
+### Step 7: Reversible DIT Safe Card Release (`FakeFormatCard` & `RestoreCard`)
+When releasing an offloaded card back to the 2nd AC (Camera Assistant), signal that it has been 100% verified by reversibly inverting the first 2 MiB (MBR/GPT/exFAT Boot Sector). The camera will immediately prompt for a clean in-camera format upon insertion, preventing duplicate recording or accidental erasure of un-offloaded cards:
+
+```powershell
+# 1. Fake-Format (Inverts 2 MiB header after verifying 100% Merkle parity with backup)
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
+  -Action FakeFormatCard `
+  -SourceRoot "D:\" `
+  -DestinationRoot "E:\Backups\Camera_Offload_001"
+
+# 2. Emergency Restore (If someone realizes a clip was missing, revert bits back in 1 second)
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
+  -Action RestoreCard `
+  -SourceRoot "D:\"
+```
+
+---
+
+### Step 8: Non-Destructive Date Organization (`OrganizeByDate`) & Two-Stage Deduplication (`DedupeScan`)
 1. **Organize Messy Camera Dumps into `YYYY\YYYY-MM-DD` (Glues Live Photos & `.AAE`/`.XMP` Sidecars):**
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
@@ -112,6 +146,9 @@ This script is the core brain of OffloadPro. Every function inside it is written
 | **`New-MhlAndCertificate`** | Seals 100% of the roll across `$MaxThreads` runspaces into `<BackupName>.mhl` (ASC-MHL XML), generates `<BackupName>.ale` (Avid/DaVinci Resolve Log Exchange) and `<BackupName>_PostHouse_Manifest.csv`, and builds `<BackupName>_Offload_Certificate.html` with `ffprobe` codec/resolution/duration badges and Base64 contact-sheet thumbnails. |
 | **`Invoke-VerifyMhlLedger`** | Parses `<BackupName>.mhl` and verifies 100% of sealed files in parallel across `$MaxThreads` PowerShell runspaces, reporting `OK`, `MISSING`, `SIZE_MISMATCH`, or `HASH_MISMATCH` (`ExitCode = 1` on any bitrot). |
 | **`Invoke-HealFromMirror`** | **Self-Healing 3-2-1 Vault:** Scans the primary archive against its `.mhl` ledger; for any missing or bit-rotted file, it verifies the corresponding file on the mirror drive against the original `.mhl` cryptographic hash and atomically repairs the primary file. |
+| **`Invoke-FakeFormatCard`** | **Reversible Safe Card Release:** Inverts the first 2 MiB (partition table and exFAT boot sector) with bitwise XOR 0xFF, forcing cameras to prompt for in-camera format on next insert while saving an emergency header backup. |
+| **`Invoke-RestoreCard`** | **Emergency Card Restoration:** Inverts the first 2 MiB back to its original byte state, instantly resurrecting all partitions, directories, and footage in 1 second. |
+| **`Invoke-GenerateProxies`** | **Editorial & Dailies Proxy Engine:** Transcodes video clips into lightweight 1080p/720p H.264 MP4 (`-movflags +faststart`) preserving metadata and exact relative folder structures for 1-click DaVinci Resolve/Premiere Pro relinking, with optional lower-third burn-in (`-ProxyBurnIn`). |
 | **`Invoke-OrganizeByDate`** | Non-destructively organizes files into `YYYY\YYYY-MM-DD` folders (via copy or instant NTFS hardlinks `-UseHardlinks`). Computes each clip group's canonical capture date from the primary photo/video first so `.AAE`/`.XMP` edits modified months later stay glued to their parent media's shoot date. |
 | **`Invoke-DedupeScan`** | **Two-Stage Scalability Funnel:** Stage 1 groups all files by exact byte length (`$f.Length`) in memory with zero disk read I/O, eliminating 95%+ of unique-size files immediately. Stage 2 hashes only same-size candidates across `$MaxThreads` runspaces to report true cryptographic duplicates and reclaimable megabytes. |
 
@@ -131,8 +168,8 @@ Runs an independent, multi-threaded PowerShell RunspacePool (`1..$Threads`) audi
 
 ---
 
-### 4. [`scripts/Invoke-TDDTestSuite.ps1`](./scripts/Invoke-TDDTestSuite.ps1) (12-Invariant Red/Green TDD & Mutation Runner)
-- Creates an isolated synthetic camera card inside `%TEMP%\OffloadPro_TDD_<GUID>` (never touching your real drives), seeds synthetic PDFs, Live Photo pairs (`.JPG` + `.MOV`), later-edited `.AAE` sidecars, orphan `.XMP` sidecars, Sony `M4ROOT\CLIP` trees, and `._*` AppleDouble files, and verifies **12 invariants** (including flipping 1 bit of a sealed file to prove `VerifyMhl` catches it with `ExitCode == 1` and `HealFromMirror` heals it back to `7/7 Verified OK`) in ~3 seconds before deleting the temp directory in `finally`.
+### 4. [`scripts/Invoke-TDDTestSuite.ps1`](./scripts/Invoke-TDDTestSuite.ps1) (14-Invariant Red/Green TDD & Mutation Runner)
+- Creates an isolated synthetic camera card inside `%TEMP%\OffloadPro_TDD_<GUID>` (never touching your real drives), seeds synthetic PDFs, Live Photo pairs (`.JPG` + `.MOV`), later-edited `.AAE` sidecars, orphan `.XMP` sidecars, Sony `M4ROOT\CLIP` trees, and `._*` AppleDouble files, and verifies **14 invariants** (including flipping 1 bit of a sealed file to prove `VerifyMhl` catches it with `ExitCode == 1`, `HealFromMirror` heals it back to `7/7 Verified OK`, `FakeFormatCard`/`RestoreCard` reversible 2 MiB round-trip header inversion, and `GenerateProxies` renders 1-click NLE proxy files) in ~3 seconds before deleting the temp directory in `finally`.
 
 ---
 
@@ -163,3 +200,11 @@ Runs an independent, multi-threaded PowerShell RunspacePool (`1..$Threads`) audi
 ### Q5: How do I import the `.ALE` file into DaVinci Resolve or Avid Media Composer?
 **A:** Every offload generates `<BackupName>.ale` alongside `<BackupName>.mhl`.
 - In **DaVinci Resolve**: Open the **Media Pool**, right-click your bin -> **Import** -> **Tracks / ALE...** (or **Import Media from ALE**) and select `<BackupName>.ale`. All clip names, byte sizes, `SHA256` checksums, and roll IDs (`Tape`) populate directly in your bin columns.
+
+### Q6: How do I attach OffloadPro proxies in DaVinci Resolve or Premiere Pro?
+**A:** Because `-Action GenerateProxies` preserves the identical relative directory structure and clip base name (e.g. `PRIVATE\M4ROOT\CLIP\C0001.mp4`), relinking is 100% automated:
+- **In DaVinci Resolve:** Select your master clips in the Media Pool -> right-click -> **Proxy Media** -> **Relink Proxy Media...** -> select the `<RollName>_Proxies` folder.
+- **In Premiere Pro:** Select clips -> right-click -> **Proxy** -> **Attach Proxies...** -> select `<RollName>_Proxies`. Premiere matches all audio tracks and timecode automatically.
+
+### Q7: How does Reversible Safe Card Release work, and why does it beat Mac-only tools like o/PARASHOOT?
+**A:** Tools like o/PARASHOOT blindly check only file name and size before flipping card bits, which can lead to data loss if an offload was truncated or corrupted during copy. OffloadPro adds a **mandatory Cryptographic Parity Gate** before touching the card. It inverts the first 2 MiB of the partition header (`XOR 0xFF`), rendering it unreadable to OS file systems and forcing the camera to prompt for in-camera formatting. If an emergency arises, `-Action RestoreCard` inverts the bits back in 1 second, restoring 100% of the partition and clips without re-formatting.

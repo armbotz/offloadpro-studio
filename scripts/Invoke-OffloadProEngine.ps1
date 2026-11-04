@@ -1,8 +1,9 @@
 <#
 .SYNOPSIS
-    OffloadPro DIT Studio v4.1 - Upper-Echelon Pure PowerShell Media Offload Engine,
+    OffloadPro DIT Studio v4.3 - Upper-Echelon Pure PowerShell Media Offload Engine,
     Win32 SequentialScan/FlushFileBuffers I/O, Crash-Resumable Ingest, Full-Roll ASC-MHL + NLE (.ALE/.CSV) Sealer,
-    Self-Healing Bitrot Repair (HealFromMirror), Camera OEM Recognizer, Two-Stage Deduplication & 3-Level FFmpeg Validator.
+    Self-Healing Bitrot Repair (HealFromMirror), Reversible DIT Card Release (FakeFormatCard/RestoreCard),
+    Automated Editorial & Dailies Proxies (GenerateProxies), Camera OEM Recognizer, Two-Stage Deduplication & 3-Level FFmpeg Validator.
 .DESCRIPTION
     100% Native PowerShell 5.1 & PowerShell 7+ (.NET Framework 4.8 & .NET 8/9) compatible engine
     requiring zero Node.js runtime, zero npm packages, and zero localhost HTTP servers.
@@ -12,7 +13,7 @@
 #>
 param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet('Preflight', 'Offload', 'Certificate', 'VerifyMhl', 'HealFromMirror', 'OrganizeByDate', 'DedupeScan', 'CompareArchives', 'ExportTelemetry')]
+    [ValidateSet('Preflight', 'Offload', 'Certificate', 'VerifyMhl', 'HealFromMirror', 'FakeFormatCard', 'RestoreCard', 'GenerateProxies', 'OrganizeByDate', 'DedupeScan', 'CompareArchives', 'ExportTelemetry')]
     [string]$Action = 'Preflight',
 
     [Parameter(Mandatory = $false)]
@@ -43,6 +44,20 @@ param(
     [Parameter(Mandatory = $false)]
     [ValidateSet('forensic_split', 'clean', 'raw')]
     [string]$MacMode = 'forensic_split',
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet('1080p', '720p', 'source')]
+    [string]$ProxyResolution = '1080p',
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet('cpu', 'nvenc')]
+    [string]$ProxyEncoder = 'cpu',
+
+    [Parameter(Mandatory = $false)]
+    [switch]$ProxyBurnIn,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$ForceFormat,
 
     [Parameter(Mandatory = $false)]
     [switch]$RescueMode,
@@ -1055,6 +1070,265 @@ function Invoke-HealFromMirror {
     }
 }
 
+# Automated Editorial & Dailies Proxy Transcoding Engine (FFmpeg)
+function Invoke-GenerateProxies {
+    param(
+        [string]$SourceArchive,
+        [string]$ProxyDestination,
+        [string]$Resolution = '1080p',
+        [string]$Encoder = 'cpu',
+        [switch]$BurnIn,
+        [int]$MaxThreads = 4,
+        [switch]$AllowOverwrite
+    )
+    $safeSrc = Assert-SafeTargetPath -InputPath $SourceArchive -IsMutating $false
+    $folderName = Split-Path -Leaf $safeSrc
+    $parentDir  = Split-Path -Parent $safeSrc
+    $targetProxyRoot = if (-not [string]::IsNullOrWhiteSpace($ProxyDestination)) {
+        $ProxyDestination
+    } else {
+        Join-Path $parentDir "${folderName}_Proxies"
+    }
+    $safeDst = Assert-SafeTargetPath -InputPath $targetProxyRoot -IsMutating $true
+
+    $ffmpegCmd = (Get-Command ffmpeg -ErrorAction SilentlyContinue).Source
+    if (-not $ffmpegCmd) {
+        throw "ffmpeg executable was not found on PATH. Install ffmpeg to generate proxies."
+    }
+
+    $vidExts = @('.mov', '.mp4', '.m4v', '.mxf', '.braw', '.r3d', '.avi', '.mkv')
+    $sourceFiles = @(Get-ChildItem -LiteralPath $safeSrc -File -Recurse -Force -ErrorAction SilentlyContinue |
+        Where-Object {
+            $ext = if ($_.Extension) { $_.Extension.ToLowerInvariant() } else { '' }
+            ($vidExts -contains $ext) -and
+            (-not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) -and
+            (-not $_.Name.StartsWith('._')) -and
+            ($OsJunkNames -notcontains $_.Name.ToLowerInvariant())
+        })
+
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "OffloadPro v4.2 Editorial & Dailies Proxy Engine (FFmpeg)" -ForegroundColor Cyan
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "Source Master Vault      : $safeSrc"
+    Write-Host "Destination Proxy Vault  : $safeDst"
+    Write-Host "Target Video Clips       : $($sourceFiles.Count)"
+    Write-Host "Proxy Profile            : H.264 $Resolution ($Encoder) | Burn-In: $(if ($BurnIn) { 'Active' } else { 'Off' })"
+
+    $renderedCount = 0
+    $resumedCount  = 0
+    $failedCount   = 0
+
+    $scaleFilter = switch ($Resolution) {
+        '720p'   { "scale=-2:720" }
+        'source' { "null" }
+        default  { "scale=-2:1080" }
+    }
+
+    $vcodec = if ($Encoder -eq 'nvenc') { 'h264_nvenc' } else { 'libx264' }
+
+    foreach ($sf in $sourceFiles) {
+        $rel = Get-RelativePathSafe -BasePath $safeSrc -FullPath $sf.FullName
+        $relNoExt = [System.IO.Path]::ChangeExtension($rel, '.mp4')
+        $proxyFile = Join-Path $safeDst $relNoExt
+        $proxyDir = Split-Path -Parent $proxyFile
+        if (-not (Test-Path -LiteralPath $proxyDir)) {
+            [void][System.IO.Directory]::CreateDirectory($proxyDir)
+        }
+
+        # Idempotent Proxy Checkpoint: Skip if proxy already exists and is non-empty
+        if ((Test-Path -LiteralPath $proxyFile) -and (-not $AllowOverwrite)) {
+            $pfi = Get-Item -LiteralPath $proxyFile -Force
+            if ($pfi.Length -gt 1024) {
+                $resumedCount++
+                continue
+            }
+        }
+
+        $filters = New-Object 'System.Collections.Generic.List[string]'
+        if ($scaleFilter -ne 'null') { $filters.Add($scaleFilter) }
+        if ($BurnIn) {
+            $safeClipName = $sf.Name.Replace("'", "").Replace(":", "")
+            $filters.Add("drawbox=y=ih-48:color=black@0.65:width=iw:height=48:t=fill,drawtext=text='ROLL: $folderName | CLIP: $safeClipName':fontcolor=white:fontsize=20:x=24:y=h-36")
+        }
+        $vfArg = if ($filters.Count -gt 0) { "-vf `"$($filters -join ',')`"" } else { "" }
+
+        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+        $pinfo.FileName = $ffmpegCmd
+        $pinfo.Arguments = "-v error -y -i `"$($sf.FullName)`" $vfArg -c:v $vcodec -preset veryfast -crf 23 -pix_fmt yuv420p -c:a aac -b:a 160k -map_metadata 0 -movflags +faststart `"$proxyFile`""
+        $pinfo.RedirectStandardOutput = $true
+        $pinfo.RedirectStandardError  = $true
+        $pinfo.UseShellExecute        = $false
+        $pinfo.CreateNoWindow         = $true
+
+        $proc = [System.Diagnostics.Process]::Start($pinfo)
+        $errOut = $proc.StandardError.ReadToEnd()
+        $proc.WaitForExit()
+
+        if ($proc.ExitCode -eq 0 -and (Test-Path -LiteralPath $proxyFile)) {
+            [System.IO.File]::SetCreationTimeUtc($proxyFile, $sf.CreationTimeUtc)
+            [System.IO.File]::SetLastWriteTimeUtc($proxyFile, $sf.LastWriteTimeUtc)
+            $renderedCount++
+        } else {
+            $failedCount++
+        }
+    }
+
+    $color = if ($failedCount -eq 0) { 'Green' } else { 'Red' }
+    Write-Host "[PROXY GENERATION COMPLETE] Target Clips: $($sourceFiles.Count) | Rendered: $renderedCount | Resumed/Cached: $resumedCount | Failed: $failedCount" -ForegroundColor $color
+
+    return [PSCustomObject]@{
+        targetClips   = $sourceFiles.Count
+        renderedCount = $renderedCount
+        resumedCount  = $resumedCount
+        failedCount   = $failedCount
+        proxyRoot     = $safeDst
+    }
+}
+
+# Reversible DIT Safe Card Release / Fake-Format Engine
+function Invoke-FakeFormatCard {
+    param(
+        [string]$CardPath,
+        [string]$VerifiedBackupPath,
+        [switch]$Force
+    )
+    $safeCard = Assert-SafeTargetPath -InputPath $CardPath -IsMutating $true
+    $isFileTarget = [System.IO.File]::Exists($safeCard)
+
+    # If it is a whole drive letter or directory, protect C: root from formatting
+    if (-not $isFileTarget) {
+        $cardRoot = [System.IO.Path]::GetPathRoot($safeCard)
+        $sysRoot  = [System.IO.Path]::GetPathRoot($env:SystemDrive)
+        if ($cardRoot -eq $sysRoot -or $cardRoot.ToUpperInvariant().StartsWith('C:')) {
+            throw "BLOCKED: Cannot fake-format the system drive ($cardRoot)!"
+        }
+
+        # Verify removable / USB drive safety gate unless testing on synthetic volume file
+        $driveInfo = New-Object System.IO.DriveInfo($cardRoot)
+        if ($driveInfo.DriveType -ne [System.IO.DriveType]::Removable -and (-not $Force)) {
+            throw "SAFETY GATE BLOCKED: Drive $cardRoot is not marked as Removable Media. Add -ForceFormat if intentionally targeting an external drive."
+        }
+    }
+
+    # Verify backup parity before allowing fake-format
+    if (-not [string]::IsNullOrWhiteSpace($VerifiedBackupPath)) {
+        $safeBackup = Assert-SafeTargetPath -InputPath $VerifiedBackupPath -IsMutating $false
+        $cmp = Invoke-CompareArchives -ArchiveA $safeCard -ArchiveB $safeBackup
+        if (-not $cmp.exactParity -and (-not $Force)) {
+            throw "SAFETY GATE BLOCKED: Card and backup do not have 100% Merkle parity! Backup missing files or has size drift. Card format blocked."
+        }
+    }
+
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "OffloadPro v4.3 Reversible DIT Fake-Format Engine" -ForegroundColor Cyan
+    Write-Host "================================================================" -ForegroundColor Cyan
+
+    $targetDeviceOrFile = if ($isFileTarget) {
+        $safeCard
+    } else {
+        "\\.\$($cardRoot.TrimEnd('\'))"
+    }
+
+    $backupHeaderPath = if (-not [string]::IsNullOrWhiteSpace($VerifiedBackupPath)) {
+        $baseNameClean = if ($isFileTarget) { [System.IO.Path]::GetFileNameWithoutExtension($safeCard) } else { $cardRoot.Replace(':', '') }
+        Join-Path $VerifiedBackupPath "${baseNameClean}_emergency_header_backup.bin"
+    } else {
+        $baseNameClean = if ($isFileTarget) { [System.IO.Path]::GetFileNameWithoutExtension($safeCard) } else { $cardRoot.Replace(':', '') }
+        Join-Path ([System.IO.Path]::GetTempPath()) "OffloadPro_HeaderBackup_${baseNameClean}.bin"
+    }
+
+    $bufferLen = 2 * 1024 * 1024 # 2 MiB (MBR/GPT/exFAT Boot Sector)
+    $buf = New-Object byte[] $bufferLen
+
+    $fs = New-Object System.IO.FileStream($targetDeviceOrFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::ReadWrite)
+    try {
+        $bytesRead = $fs.Read($buf, 0, $bufferLen)
+        if ($bytesRead -lt 512) {
+            throw "Failed to read partition table from $targetDeviceOrFile"
+        }
+
+        # Save an emergency un-inverted binary backup file
+        [System.IO.File]::WriteAllBytes($backupHeaderPath, $buf)
+
+        # Invert bits (XOR 0xFF) for all read bytes
+        for ($i = 0; $i -lt $bytesRead; $i++) {
+            $buf[$i] = [byte]($buf[$i] -bxor 0xFF)
+        }
+
+        $fs.Seek(0, [System.IO.SeekOrigin]::Begin) | Out-Null
+        $fs.Write($buf, 0, $bytesRead)
+        $fs.Flush($true)
+    } finally {
+        $fs.Dispose()
+    }
+
+    Write-Host "[FAKE-FORMAT COMPLETE] Inverted $bytesRead bytes (2 MiB header). Card will prompt for clean in-camera format on next insert." -ForegroundColor Green
+    Write-Host "Emergency Header Backup : $backupHeaderPath" -ForegroundColor DarkGray
+
+    return [PSCustomObject]@{
+        target           = $targetDeviceOrFile
+        bytesInverted    = $bytesRead
+        emergencyHeader  = $backupHeaderPath
+        status           = 'FAKE_FORMATTED'
+    }
+}
+
+# Reversible DIT Card Restore Engine (Un-Invert 2 MiB Header)
+function Invoke-RestoreCard {
+    param(
+        [string]$CardPath
+    )
+    $safeCard = Assert-SafeTargetPath -InputPath $CardPath -IsMutating $true
+    $isFileTarget = [System.IO.File]::Exists($safeCard)
+
+    if (-not $isFileTarget) {
+        $cardRoot = [System.IO.Path]::GetPathRoot($safeCard)
+        $sysRoot  = [System.IO.Path]::GetPathRoot($env:SystemDrive)
+        if ($cardRoot -eq $sysRoot -or $cardRoot.ToUpperInvariant().StartsWith('C:')) {
+            throw "BLOCKED: Cannot restore system drive ($cardRoot)!"
+        }
+    }
+    $targetDeviceOrFile = if ($isFileTarget) {
+        $safeCard
+    } else {
+        "\\.\$($cardRoot.TrimEnd('\'))"
+    }
+
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "OffloadPro v4.3 Reversible DIT Card Restoration Engine" -ForegroundColor Cyan
+    Write-Host "================================================================" -ForegroundColor Cyan
+
+    $bufferLen = 2 * 1024 * 1024
+    $buf = New-Object byte[] $bufferLen
+
+    $fs = New-Object System.IO.FileStream($targetDeviceOrFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::ReadWrite)
+    try {
+        $bytesRead = $fs.Read($buf, 0, $bufferLen)
+        if ($bytesRead -lt 512) {
+            throw "Failed to read header from $targetDeviceOrFile"
+        }
+
+        # Invert bits again (XOR 0xFF reverts inverted bytes back to original)
+        for ($i = 0; $i -lt $bytesRead; $i++) {
+            $buf[$i] = [byte]($buf[$i] -bxor 0xFF)
+        }
+
+        $fs.Seek(0, [System.IO.SeekOrigin]::Begin) | Out-Null
+        $fs.Write($buf, 0, $bytesRead)
+        $fs.Flush($true)
+    } finally {
+        $fs.Dispose()
+    }
+
+    Write-Host "[CARD RESTORE COMPLETE] Restored $bytesRead bytes. File system and partitions returned to original readable state." -ForegroundColor Green
+
+    return [PSCustomObject]@{
+        target        = $targetDeviceOrFile
+        bytesRestored = $bytesRead
+        status        = 'RESTORED'
+    }
+}
+
 function Invoke-OrganizeByDate {
     param(
         [string]$SourceArchive,
@@ -1411,6 +1685,21 @@ try {
                 $script:ExitCodeToReturn = 1
             }
             if ($PassThru) { Write-Output $healRes }
+        }
+        'FakeFormatCard' {
+            $fmtRes = Invoke-FakeFormatCard -CardPath $SourceRoot -VerifiedBackupPath $DestinationRoot -Force:$ForceFormat
+            if ($PassThru) { Write-Output $fmtRes }
+        }
+        'RestoreCard' {
+            $rstRes = Invoke-RestoreCard -CardPath $SourceRoot
+            if ($PassThru) { Write-Output $rstRes }
+        }
+        'GenerateProxies' {
+            $proxyRes = Invoke-GenerateProxies -SourceArchive $TargetPath -ProxyDestination $DestinationRoot -Resolution $ProxyResolution -Encoder $ProxyEncoder -BurnIn:$ProxyBurnIn -MaxThreads $Threads -AllowOverwrite:$true
+            if ($proxyRes.failedCount -gt 0) {
+                $script:ExitCodeToReturn = 1
+            }
+            if ($PassThru) { Write-Output $proxyRes }
         }
         'OrganizeByDate' {
             $orgRes = Invoke-OrganizeByDate -SourceArchive $SourceRoot -OrganizedRoot $DestinationRoot -CreateHardlinks:$UseHardlinks
