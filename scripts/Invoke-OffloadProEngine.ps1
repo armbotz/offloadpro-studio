@@ -17,16 +17,16 @@ param(
     [string]$Action = 'Preflight',
 
     [Parameter(Mandatory = $false)]
-    [string]$SourceRoot = 'D:\',
+    [string]$SourceRoot = '',
 
     [Parameter(Mandatory = $false)]
-    [string]$DestinationRoot = 'E:\Backups\Camera_Offload_001',
+    [string]$DestinationRoot = '',
 
     [Parameter(Mandatory = $false)]
     [string]$SecondaryDestinationRoot = '',
 
     [Parameter(Mandatory = $false)]
-    [string]$TargetPath = 'E:\Backups\Camera_Offload_001',
+    [string]$TargetPath = '',
 
     [Parameter(Mandatory = $false)]
     [string]$MhlPath = '',
@@ -92,8 +92,7 @@ $TelemetryJsPath = Join-Path $RepoRoot 'public\offloadpro-telemetry.js'
 $CreativeSidecarExts = @('.aae', '.xmp', '.xml', '.bim', '.cpi', '.mpl', '.srt', '.vtt', '.cube', '.3dl', '.thm', '.lrv')
 $OsJunkNames         = @('.ds_store', 'thumbs.db', 'desktop.ini')
 
-function Set-ExecutionAwakeLock {
-    param([bool]$Enable)
+function Initialize-OffloadProPInvoke {
     try {
         if (-not ([System.Management.Automation.PSTypeName]'OffloadPro.PowerGuard').Type) {
             Add-Type -Namespace 'OffloadPro' -Name 'PowerGuard' -MemberDefinition @'
@@ -101,22 +100,6 @@ function Set-ExecutionAwakeLock {
                 public static extern uint SetThreadExecutionState(uint esFlags);
 '@ -ErrorAction SilentlyContinue
         }
-        $ES_CONTINUOUS      = [uint32]2147483648
-        $ES_SYSTEM_REQUIRED = [uint32]1
-        if ($Enable) {
-            [void][OffloadPro.PowerGuard]::SetThreadExecutionState($ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED)
-        } else {
-            [void][OffloadPro.PowerGuard]::SetThreadExecutionState($ES_CONTINUOUS)
-        }
-    } catch {}
-}
-
-function Invoke-Win32VolumeIoctl {
-    param(
-        [string]$VolumeDevicePath,
-        [uint32]$IoControlCode
-    )
-    try {
         if (-not ([System.Management.Automation.PSTypeName]'OffloadPro.DiskControl').Type) {
             Add-Type -Namespace 'OffloadPro' -Name 'DiskControl' -MemberDefinition @'
                 [System.Runtime.InteropServices.DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
@@ -131,10 +114,23 @@ function Invoke-Win32VolumeIoctl {
                     IntPtr lpOverlapped);
 '@ -ErrorAction SilentlyContinue
         }
-        return $true
-    } catch {
-        return $false
-    }
+    } catch {}
+}
+
+Initialize-OffloadProPInvoke
+
+function Set-ExecutionAwakeLock {
+    param([bool]$Enable)
+    try {
+        Initialize-OffloadProPInvoke
+        $ES_CONTINUOUS      = [uint32]2147483648
+        $ES_SYSTEM_REQUIRED = [uint32]1
+        if ($Enable) {
+            [void][OffloadPro.PowerGuard]::SetThreadExecutionState($ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED)
+        } else {
+            [void][OffloadPro.PowerGuard]::SetThreadExecutionState($ES_CONTINUOUS)
+        }
+    } catch {}
 }
 
 function New-CryptoHasher {
@@ -1562,8 +1558,9 @@ Set-ExecutionAwakeLock -Enable $true
 try {
     switch ($Action) {
         'Preflight' {
+            $effectiveScanPath = if (-not [string]::IsNullOrWhiteSpace($TargetPath)) { $TargetPath } elseif (-not [string]::IsNullOrWhiteSpace($SourceRoot)) { $SourceRoot } else { 'D:\' }
             $vols = Get-MountedVolumesTelemetry
-            $scan = Invoke-PreflightScan -ScanPath $TargetPath
+            $scan = Invoke-PreflightScan -ScanPath $effectiveScanPath
             $oems = if ($scan.detectedCameraOems.Count -gt 0) { $scan.detectedCameraOems -join ', ' } else { 'Generic Media' }
             Write-Host "================================================================" -ForegroundColor Cyan
             Write-Host "OffloadPro v4.1 Pre-Flight X-Ray (Pure PowerShell)" -ForegroundColor Cyan
@@ -1597,13 +1594,15 @@ try {
             if ($PassThru) { Write-Output ([PSCustomObject]$payload) }
         }
         'Offload' {
-            $safeSrc  = Assert-SafeTargetPath -InputPath $SourceRoot -IsMutating $false
-            $effectiveDst1 = $DestinationRoot
+            $effectiveSrc = if (-not [string]::IsNullOrWhiteSpace($SourceRoot)) { $SourceRoot } else { 'D:\' }
+            $effectiveDstBase = if (-not [string]::IsNullOrWhiteSpace($DestinationRoot)) { $DestinationRoot } else { 'E:\Backups\Camera_Offload_001' }
+            $safeSrc  = Assert-SafeTargetPath -InputPath $effectiveSrc -IsMutating $false
+            $effectiveDst1 = $effectiveDstBase
             if (-not [string]::IsNullOrWhiteSpace($CameraId) -or -not [string]::IsNullOrWhiteSpace($RollId)) {
                 $dateStr = (Get-Date).ToString('yyyy-MM-dd')
                 $camPart = if ($CameraId) { "_$CameraId" } else { '' }
                 $rolPart = if ($RollId)   { "_$RollId" }   else { '' }
-                $effectiveDst1 = Join-Path $DestinationRoot "${dateStr}${camPart}${rolPart}"
+                $effectiveDst1 = Join-Path $effectiveDstBase "${dateStr}${camPart}${rolPart}"
             }
             $safeDst1 = Assert-SafeTargetPath -InputPath $effectiveDst1 -IsMutating $true
             $dstRoots = New-Object 'System.Collections.Generic.List[string]'

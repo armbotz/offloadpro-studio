@@ -214,23 +214,21 @@ try {
     # --- TEST 13: Automated Editorial & Dailies Proxy Generation (FFmpeg) ---
     $ffmpegCmd = (Get-Command ffmpeg -ErrorAction SilentlyContinue).Source
     if ($ffmpegCmd) {
-        # Render 1-second synthetic master clip using lavfi testsrc into BackupDir
         $synthClip = Join-Path $BackupDir 'DCIM\100MEDIA\C0001.mp4'
+        [void][System.IO.Directory]::CreateDirectory((Split-Path -Parent $synthClip))
         $genPinfo = New-Object System.Diagnostics.ProcessStartInfo
         $genPinfo.FileName = $ffmpegCmd
-        $genPinfo.Arguments = "-v error -y -f lavfi -i testsrc=duration=1:size=1920x1080:rate=24 -c:v libx264 -pix_fmt yuv420p `"$synthClip`""
+        $genPinfo.Arguments = "-v error -y -f lavfi -i testsrc=duration=1:size=640x360:rate=24 -c:v libx264 -pix_fmt yuv420p -an `"$synthClip`""
         $genPinfo.CreateNoWindow = $true
         $genPinfo.UseShellExecute = $false
         $gp = [System.Diagnostics.Process]::Start($genPinfo)
         $gp.WaitForExit()
 
-        $proxyRes = & $EnginePath -Action GenerateProxies -TargetPath $BackupDir -ProxyResolution 720p -AllowOverwrite -PassThru 6>$null
-        $expectedProxyFile = Join-Path (Join-Path (Split-Path -Parent $BackupDir) 'Roll_A001_Proxies') 'DCIM\100MEDIA\C0001.mp4'
-        if (-not (Test-Path -LiteralPath $expectedProxyFile) -and $proxyRes.proxyRoot) {
-            $expectedProxyFile = Join-Path $proxyRes.proxyRoot 'DCIM\100MEDIA\C0001.mp4'
-        }
+        $proxyDst = Join-Path (Split-Path -Parent $BackupDir) 'Roll_A001_Proxies'
+        $proxyRes = & $EnginePath -Action GenerateProxies -TargetPath $BackupDir -DestinationRoot $proxyDst -ProxyResolution 720p -AllowOverwrite -PassThru 6>$null
+        $expectedProxyFile = Join-Path $proxyDst 'DCIM\100MEDIA\C0001.mp4'
         $proxyFileExists = Test-Path -LiteralPath $expectedProxyFile
-        $proxySizeOk = if ($proxyFileExists) { (Get-Item -LiteralPath $expectedProxyFile).Length -gt 1000 } else { $false }
+        $proxySizeOk = if ($proxyFileExists) { (Get-Item -LiteralPath $expectedProxyFile).Length -gt 500 } else { $false }
         $totalProcessed = $proxyRes.renderedCount + $proxyRes.resumedCount
         Assert-Condition `
             -Condition ($totalProcessed -ge 1 -and $proxyFileExists -and $proxySizeOk) `

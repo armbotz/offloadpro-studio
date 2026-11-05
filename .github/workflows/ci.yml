@@ -39,7 +39,7 @@ jobs:
       - name: 2. PowerShell AST Syntax & Static Validation (PS 7+ & Windows PS 5.1)
         shell: powershell
         run: |
-          $codeFiles = @(Get-ChildItem -Path .\scripts, .\modules -Include '*.ps1', '*.psm1', '*.psd1' -Recurse -File)
+          $codeFiles = @(Get-ChildItem -Path .\scripts, .\modules -Recurse -File | Where-Object { $_.Extension -in '.ps1', '.psm1', '.psd1' })
           foreach ($s in $codeFiles) {
             $tokens = $null
             $errors = $null
@@ -54,11 +54,9 @@ jobs:
       - name: 3. Execute 14-Invariant TDD & Mutation Test Suite (PowerShell 7+)
         shell: pwsh
         run: |
-          & .\scripts\Invoke-TDDTestSuite.ps1
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pwsh -NoProfile -File .\scripts\Invoke-TDDTestSuite.ps1
 
       - name: 4. Execute 14-Invariant TDD & Mutation Test Suite (Windows PowerShell 5.1)
         shell: powershell
         run: |
-          & .\scripts\Invoke-TDDTestSuite.ps1
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-TDDTestSuite.ps1

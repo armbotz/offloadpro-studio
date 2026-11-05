@@ -7,7 +7,8 @@
     automated H.264 dailies proxy rendering, and reversible safe card release.
 #>
 
-$EngineScript = Join-Path $PSScriptRoot '..\scripts\Invoke-OffloadProEngine.ps1'
+$RepoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$EngineScript = Join-Path $RepoRoot 'scripts\Invoke-OffloadProEngine.ps1'
 
 function Start-OffloadProSession {
     [CmdletBinding()]
