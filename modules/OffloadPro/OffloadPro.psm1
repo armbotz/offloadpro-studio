@@ -8,7 +8,16 @@
 #>
 
 $RepoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$EngineScript = Join-Path $RepoRoot 'scripts\Invoke-OffloadProEngine.ps1'
+$PrivateDir = Join-Path $PSScriptRoot 'Private'
+
+# Dot-source all private functions
+if (Test-Path -LiteralPath $PrivateDir) {
+    foreach ($privFile in @(Get-ChildItem -LiteralPath $PrivateDir -Filter '*.ps1' -File | Sort-Object Name)) {
+        . $privFile.FullName
+    }
+}
+
+Initialize-OffloadProPInvoke
 
 function Start-OffloadProSession {
     [CmdletBinding()]
@@ -37,23 +46,42 @@ function Start-OffloadProSession {
         [string]$MacMode = 'forensic_split',
 
         [Parameter(Mandatory = $false)]
+        [switch]$RescueMode,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$AllowOverwrite,
+
+        [Parameter(Mandatory = $false)]
+        [bool]$VerifyLevel1 = $true,
+
+        [Parameter(Mandatory = $false)]
+        [bool]$VerifyLevel2 = $true,
+
+        [Parameter(Mandatory = $false)]
+        [bool]$VerifyLevel3 = $false,
+
+        [Parameter(Mandatory = $false)]
+        [int]$Threads = 6,
+
+        [Parameter(Mandatory = $false)]
         [switch]$PassThru
     )
     process {
-        $params = @{
-            Action           = 'Offload'
-            SourceRoot       = $SourceRoot
-            DestinationRoot  = $DestinationRoot
-            Algorithm        = $Algorithm
-            MacMode          = $MacMode
-            CameraId         = $CameraId
-            RollId           = $RollId
-            PassThru         = $PassThru
-        }
-        if ($SecondaryDestinationRoot) {
-            $params['SecondaryDestinationRoot'] = $SecondaryDestinationRoot
-        }
-        & $EngineScript @params
+        Invoke-OffloadSession `
+            -SourceRoot $SourceRoot `
+            -DestinationRoot $DestinationRoot `
+            -SecondaryDestinationRoot $SecondaryDestinationRoot `
+            -CameraId $CameraId `
+            -RollId $RollId `
+            -Algorithm $Algorithm `
+            -MacMode $MacMode `
+            -RescueMode:$RescueMode `
+            -AllowOverwrite:$AllowOverwrite `
+            -VerifyLevel1:$VerifyLevel1 `
+            -VerifyLevel2:$VerifyLevel2 `
+            -VerifyLevel3:$VerifyLevel3 `
+            -Threads $Threads `
+            -PassThru:$PassThru
     }
 }
 
@@ -69,7 +97,7 @@ function Test-MediaParity {
         [Parameter(Mandatory = $false)]
         [switch]$PassThru
     )
-    & $EngineScript -Action CompareArchives -SourceRoot $ArchiveA -DestinationRoot $ArchiveB -PassThru:$PassThru
+    Invoke-CompareArchives -ArchiveA $ArchiveA -ArchiveB $ArchiveB -PassThru:$PassThru
 }
 
 function Repair-MediaVault {
@@ -82,9 +110,33 @@ function Repair-MediaVault {
         [string]$MirrorArchivePath,
 
         [Parameter(Mandatory = $false)]
+        [string]$MhlPath = '',
+
+        [Parameter(Mandatory = $false)]
+        [int]$Threads = 6,
+
+        [Parameter(Mandatory = $false)]
         [switch]$PassThru
     )
-    & $EngineScript -Action HealFromMirror -TargetPath $PrimaryArchivePath -SourceRoot $MirrorArchivePath -PassThru:$PassThru
+    Invoke-HealFromMirror -ArchivePath $PrimaryArchivePath -MirrorArchivePath $MirrorArchivePath -ExplicitMhlPath $MhlPath -MaxThreads $Threads -PassThru:$PassThru
+}
+
+function Test-MediaArchive {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ArchivePath,
+
+        [Parameter(Mandatory = $false)]
+        [string]$MhlPath = '',
+
+        [Parameter(Mandatory = $false)]
+        [int]$Threads = 6,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$PassThru
+    )
+    Invoke-VerifyMhlLedger -ArchivePath $ArchivePath -ExplicitMhlPath $MhlPath -MaxThreads $Threads -PassThru:$PassThru
 }
 
 function New-CameraProxy {
@@ -101,12 +153,22 @@ function New-CameraProxy {
         [string]$Resolution = '1080p',
 
         [Parameter(Mandatory = $false)]
+        [ValidateSet('cpu', 'nvenc')]
+        [string]$Encoder = 'cpu',
+
+        [Parameter(Mandatory = $false)]
         [switch]$BurnIn,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$AllowOverwrite,
+
+        [Parameter(Mandatory = $false)]
+        [int]$Threads = 4,
 
         [Parameter(Mandatory = $false)]
         [switch]$PassThru
     )
-    & $EngineScript -Action GenerateProxies -TargetPath $SourceArchivePath -DestinationRoot $ProxyDestination -ProxyResolution $Resolution -ProxyBurnIn:$BurnIn -PassThru:$PassThru
+    Invoke-GenerateProxies -SourceArchive $SourceArchivePath -ProxyDestination $ProxyDestination -Resolution $Resolution -Encoder $Encoder -BurnIn:$BurnIn -AllowOverwrite:$AllowOverwrite -MaxThreads $Threads -PassThru:$PassThru
 }
 
 function Clear-CameraCard {
@@ -125,7 +187,7 @@ function Clear-CameraCard {
         [switch]$PassThru
     )
     if ($PSCmdlet.ShouldProcess($CardPath, "Reversibly inverting 2 MiB partition header (XOR 0xFF fake-format)")) {
-        & $EngineScript -Action FakeFormatCard -SourceRoot $CardPath -DestinationRoot $VerifiedBackupPath -ForceFormat:$Force -PassThru:$PassThru
+        Invoke-FakeFormatCard -CardPath $CardPath -VerifiedBackupPath $VerifiedBackupPath -Force:$Force -PassThru:$PassThru
     }
 }
 
@@ -139,8 +201,57 @@ function Undo-CardClear {
         [switch]$PassThru
     )
     if ($PSCmdlet.ShouldProcess($CardPath, "Re-inverting 2 MiB partition header back to original readable state")) {
-        & $EngineScript -Action RestoreCard -SourceRoot $CardPath -PassThru:$PassThru
+        Invoke-RestoreCard -CardPath $CardPath -PassThru:$PassThru
     }
 }
 
-Export-ModuleMember -Function Start-OffloadProSession, Test-MediaParity, Repair-MediaVault, New-CameraProxy, Clear-CameraCard, Undo-CardClear
+function Get-CameraCardXRay {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string]$CardPath,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$PassThru
+    )
+    Invoke-PreflightScan -ScanPath $CardPath
+}
+
+function Find-DuplicateMedia {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string]$ArchivePath,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('SHA256', 'MD5', 'SHA1')]
+        [string]$Algorithm = 'SHA256',
+
+        [Parameter(Mandatory = $false)]
+        [int]$Threads = 6,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$PassThru
+    )
+    Invoke-DedupeScan -ArchivePath $ArchivePath -HashAlgorithm $Algorithm -MaxThreads $Threads -PassThru:$PassThru
+}
+
+function Invoke-MediaOrganization {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourcePath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationPath,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$UseHardlinks,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$PassThru
+    )
+    Invoke-OrganizeByDate -SourceArchive $SourcePath -OrganizedRoot $DestinationPath -CreateHardlinks:$UseHardlinks -PassThru:$PassThru
+}
+
+Export-ModuleMember -Function Start-OffloadProSession, Test-MediaParity, Repair-MediaVault, Test-MediaArchive, New-CameraProxy, Clear-CameraCard, Undo-CardClear, Get-CameraCardXRay, Find-DuplicateMedia, Invoke-MediaOrganization

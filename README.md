@@ -26,17 +26,17 @@ OffloadPro v4.4 can be imported directly as a standard PowerShell module:
 ```powershell
 Import-Module .\modules\OffloadPro\OffloadPro.psd1 -Force
 
-# Run Preflight X-Ray Check
-Start-OffloadProSession -Action Preflight -TargetPath "D:\"
-
 # Execute Dual-Destination Offload with Full-Roll ASC-MHL & ALE Export
 Start-OffloadProSession -SourceRoot "D:\" -DestinationRoot "E:\Backups\Roll_A001" -SecondaryDestinationRoot "F:\Backups\Roll_A001" -CameraId "CamA" -RollId "A001"
 
-# Safe Card Release: Invert partition header with Win32 FSCTL volume lock
-Clear-CameraCard -DriveLetter "D:\" -Confirm:$false
+# Compare card vs. backup (Merkle parity)
+Test-MediaParity "D:\" "E:\Backups\Roll_A001"
+
+# Safe Card Release: Invert partition header (prompts for confirmation)
+Clear-CameraCard -CardPath "D:\" -VerifiedBackupPath "E:\Backups\Roll_A001"
 
 # Undo Safe Release: Restore original header
-Undo-CardClear -DriveLetter "D:\" -Confirm:$false
+Undo-CardClear -CardPath "D:\"
 ```
 
 ---

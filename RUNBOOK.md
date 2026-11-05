@@ -25,12 +25,7 @@
 Before copying a single byte, inspect the source card for **Camera Sequence Numbering Gaps** (e.g., `C0001`, `C0002`, `C0004` missing `C0003`), **Spanned-Clip Sub-Parts**, **Orphan Sidecars**, **Live Photo Pairs**, **Camera OEM Folder Signatures** (`Sony M4ROOT\CLIP`, `RED .R3D`, `Blackmagic .BRAW`, `Canon`, `DJI`, `Apple iOS`), and **`exFAT` 128 KB Cluster Slack Waste**:
 
 - **In Browser (Zero CLI):** Click **📂 Scan Folder in Browser** in Column 1 of [`public/index.html`](./public/index.html).
-- **Via Native PowerShell Module:**
-  ```powershell
-  Import-Module .\modules\OffloadPro\OffloadPro.psd1
-  Start-OffloadProSession -Action Preflight -TargetPath "D:\"
-  ```
-- **Via Direct Engine Script:**
+- **Via PowerShell CLI:**
   ```powershell
   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action Preflight -TargetPath "D:\"
   ```
@@ -111,10 +106,10 @@ OffloadPro v4.4 dispatches Win32 `DeviceIoControl` control codes (`FSCTL_LOCK_VO
 Import-Module .\modules\OffloadPro\OffloadPro.psd1
 
 # 1. Fake-Format (Inverts 2 MiB header after verifying 100% Merkle parity with backup)
-Clear-CameraCard -DriveLetter "D:\" -BackupPath "E:\Backups\Camera_Offload_001" -Confirm:$false
+Clear-CameraCard -CardPath "D:\" -VerifiedBackupPath "E:\Backups\Camera_Offload_001"
 
 # 2. Emergency Restore (If someone realizes a clip was missing, revert bits back in 1 second)
-Undo-CardClear -DriveLetter "D:\" -Confirm:$false
+Undo-CardClear -CardPath "D:\"
 
 # Direct Engine Script equivalent:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
