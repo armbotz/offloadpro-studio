@@ -1,4 +1,4 @@
-name: OffloadPro v4.3 - Pure PowerShell, TDD & DevSecOps CI Gate
+name: OffloadPro v4.4 - Pure PowerShell, TDD & DevSecOps CI Gate
 
 on:
   push:
@@ -39,8 +39,8 @@ jobs:
       - name: 2. PowerShell AST Syntax & Static Validation (PS 7+ & Windows PS 5.1)
         shell: powershell
         run: |
-          $scripts = Get-ChildItem -Path .\scripts -Filter '*.ps1' -File
-          foreach ($s in $scripts) {
+          $codeFiles = @(Get-ChildItem -Path .\scripts, .\modules -Include '*.ps1', '*.psm1', '*.psd1' -Recurse -File)
+          foreach ($s in $codeFiles) {
             $tokens = $null
             $errors = $null
             [void][System.Management.Automation.Language.Parser]::ParseFile($s.FullName, [ref]$tokens, [ref]$errors)

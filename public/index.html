@@ -22,6 +22,7 @@
       --amber-bg: rgba(245, 158, 11, 0.14);
       --red: #ef4444;
       --red-bg: rgba(239, 68, 68, 0.14);
+      --halo-color: transparent;
     }
 
     * { box-sizing: border-box; }
@@ -31,6 +32,34 @@
       background: radial-gradient(circle at top right, #111c35 0%, var(--bg-0) 60%);
       color: var(--text-0);
       min-height: 100vh;
+      box-shadow: inset 0 0 80px var(--halo-color);
+      transition: box-shadow 0.6s ease;
+    }
+
+    /* 10-Foot Ambient Status Halo Modes */
+    body.halo-green { --halo-color: rgba(16, 185, 129, 0.45); }
+    body.halo-red   { --halo-color: rgba(239, 68, 68, 0.55); }
+    body.halo-amber { --halo-color: rgba(245, 158, 11, 0.45); }
+    body.halo-blue  { --halo-color: rgba(56, 189, 248, 0.45); }
+
+    .audio-toggle-btn {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      color: var(--text-1);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .audio-toggle-btn.active {
+      border-color: #38bdf8;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
     }
 
     header {
@@ -339,8 +368,13 @@
         <span>Reversible Safe Card Format (o/PARASHOOT Inversion) • H.264 Proxies • Self-Healing MHL • 14-Test Typed TDD • Zero Node.js</span>
       </div>
     </div>
-    <div id="trafficBanner" class="traffic-banner">
-      <span>🟡 1-DRIVE COPY VERIFIED (KEEP CARD OR MIRROR FOR 3-2-1 BEFORE IN-CAMERA FORMAT)</span>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button id="audioToggleBtn" class="audio-toggle-btn active" onclick="toggleDITAudio()" title="Toggle On-Set DIT Soundscape (Chimes & Alerts)">
+        🔊 DIT Audio Chimes
+      </button>
+      <div id="trafficBanner" class="traffic-banner">
+        <span>🟡 1-DRIVE COPY VERIFIED (KEEP CARD OR MIRROR FOR 3-2-1 BEFORE IN-CAMERA FORMAT)</span>
+      </div>
     </div>
   </header>
 
@@ -1009,11 +1043,15 @@
         banner.style.borderColor = 'var(--green)';
         banner.style.color = '#34d399';
         banner.innerHTML = '<span>🟢 100% SOURCE VS. BACKUP MERKLE PARITY MATCH — SAFE TO PULL CARD</span>';
+        setAmbientHalo('green');
+        playDITChime('success');
       } else {
         banner.style.background = 'var(--red-bg)';
         banner.style.borderColor = 'var(--red)';
         banner.style.color = '#fca5a5';
         banner.innerHTML = '<span>🔴 PARITY DRIFT DETECTED BETWEEN SOURCE & BACKUP — DO NOT FORMAT CARD</span>';
+        setAmbientHalo('red');
+        playDITChime('error');
       }
 
       box.innerHTML = `
@@ -1161,11 +1199,13 @@
         banner.style.borderColor = 'var(--green)';
         banner.style.color = '#34d399';
         banner.innerHTML = '<span>🟢 3-2-1 DUAL-DESTINATION MODE CONFIGURED (2 SIMULTANEOUS COPIES)</span>';
+        setAmbientHalo('green');
       } else {
         banner.style.background = 'var(--amber-bg)';
         banner.style.borderColor = 'var(--amber)';
         banner.style.color = '#fbbf24';
         banner.innerHTML = '<span>🟡 1-DRIVE COPY VERIFIED (KEEP CARD OR MIRROR FOR 3-2-1 BEFORE IN-CAMERA FORMAT)</span>';
+        setAmbientHalo('amber');
       }
 
       const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-OffloadProEngine.ps1 \`\n  -Action Offload \`\n  -SourceRoot "${src}" \`\n  -DestinationRoot "${dst1}"${dst2Arg}${camArg}${rollArg} \`\n  -Algorithm ${algo} \`\n  -MacMode ${macMode} \`\n  -VerifyLevel1 ${l1} -VerifyLevel2 ${l2} -VerifyLevel3 ${l3}${rescue}`;
@@ -1263,6 +1303,82 @@
       const flag = dryRun ? '' : ' -DeleteJunkAfterDump';
       const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Invoke-MacMetadataForensics.ps1 -TargetPath "${targetPath}"${flag}`;
       setCommandDock(dryRun ? '🧪 Dry-Run Count Tier-2 OS Junk (Protects .AAE / .XMP):' : '🗑️ Purge Tier-2 OS Junk (._*, .DS_Store, Thumbs.db):', cmd, true);
+    }
+
+    // 10-Foot Ambient Status Halo & On-Set DIT Soundscape (Web Audio API)
+    let audioContext = null;
+    let ditAudioEnabled = true;
+
+    function toggleDITAudio() {
+      ditAudioEnabled = !ditAudioEnabled;
+      const btn = document.getElementById('audioToggleBtn');
+      if (btn) {
+        btn.classList.toggle('active', ditAudioEnabled);
+        btn.innerHTML = ditAudioEnabled ? '🔊 DIT Audio Chimes' : '🔇 Muted Audio';
+      }
+    }
+
+    function setAmbientHalo(mode) {
+      document.body.classList.remove('halo-green', 'halo-red', 'halo-amber', 'halo-blue');
+      if (mode) {
+        document.body.classList.add(`halo-${mode}`);
+      }
+    }
+
+    function playDITChime(type) {
+      if (!ditAudioEnabled) return;
+      try {
+        if (!audioContext) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) audioContext = new AudioContext();
+        }
+        if (!audioContext || audioContext.state === 'suspended') {
+          audioContext?.resume();
+        }
+        if (!audioContext) return;
+
+        const now = audioContext.currentTime;
+        if (type === 'success') {
+          // Hollywood DIT Verified Two-Tone Major Third Chime (523.25Hz C5 -> 659.25Hz E5)
+          const osc1 = audioContext.createOscillator();
+          const osc2 = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(523.25, now); // C5
+          osc1.frequency.setValueAtTime(659.25, now + 0.15); // E5
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.exponentialRampToValueAtTime(0.2, now + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+
+          osc1.connect(gain);
+          gain.connect(audioContext.destination);
+
+          osc1.start(now);
+          osc1.stop(now + 0.55);
+        } else if (type === 'error') {
+          // Low-frequency Warning Pulse (146.83Hz D3 -> 110Hz A2)
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(146.83, now);
+          osc.frequency.setValueAtTime(110.00, now + 0.2);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.exponentialRampToValueAtTime(0.25, now + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.65);
+        }
+      } catch (e) {
+        console.warn('Audio chime ignored:', e);
+      }
     }
 
     function initStudioOffline() {

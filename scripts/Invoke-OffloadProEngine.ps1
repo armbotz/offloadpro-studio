@@ -111,6 +111,32 @@ function Set-ExecutionAwakeLock {
     } catch {}
 }
 
+function Invoke-Win32VolumeIoctl {
+    param(
+        [string]$VolumeDevicePath,
+        [uint32]$IoControlCode
+    )
+    try {
+        if (-not ([System.Management.Automation.PSTypeName]'OffloadPro.DiskControl').Type) {
+            Add-Type -Namespace 'OffloadPro' -Name 'DiskControl' -MemberDefinition @'
+                [System.Runtime.InteropServices.DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+                public static extern bool DeviceIoControl(
+                    IntPtr hDevice,
+                    uint dwIoControlCode,
+                    IntPtr lpInBuffer,
+                    uint nInBufferSize,
+                    IntPtr lpOutBuffer,
+                    uint nOutBufferSize,
+                    out uint lpBytesReturned,
+                    IntPtr lpOverlapped);
+'@ -ErrorAction SilentlyContinue
+        }
+        return $true
+    } catch {
+        return $false
+    }
+}
+
 function New-CryptoHasher {
     param([string]$HashAlgorithm)
     switch ($HashAlgorithm.ToUpperInvariant()) {
@@ -1242,6 +1268,13 @@ function Invoke-FakeFormatCard {
 
     $fs = New-Object System.IO.FileStream($targetDeviceOrFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::ReadWrite)
     try {
+        if (-not $isFileTarget) {
+            # FSCTL_LOCK_VOLUME = 0x00090018, FSCTL_DISMOUNT_VOLUME = 0x00090020
+            $bytesRet = [uint32]0
+            [void][OffloadPro.DiskControl]::DeviceIoControl($fs.SafeFileHandle.DangerousGetHandle(), [uint32]0x00090018, [IntPtr]::Zero, 0, [IntPtr]::Zero, 0, [ref]$bytesRet, [IntPtr]::Zero)
+            [void][OffloadPro.DiskControl]::DeviceIoControl($fs.SafeFileHandle.DangerousGetHandle(), [uint32]0x00090020, [IntPtr]::Zero, 0, [IntPtr]::Zero, 0, [ref]$bytesRet, [IntPtr]::Zero)
+        }
+
         $bytesRead = $fs.Read($buf, 0, $bufferLen)
         if ($bytesRead -lt 512) {
             throw "Failed to read partition table from $targetDeviceOrFile"
@@ -1258,6 +1291,12 @@ function Invoke-FakeFormatCard {
         $fs.Seek(0, [System.IO.SeekOrigin]::Begin) | Out-Null
         $fs.Write($buf, 0, $bytesRead)
         $fs.Flush($true)
+
+        if (-not $isFileTarget) {
+            # FSCTL_UNLOCK_VOLUME = 0x0009001C
+            $bytesRet = [uint32]0
+            [void][OffloadPro.DiskControl]::DeviceIoControl($fs.SafeFileHandle.DangerousGetHandle(), [uint32]0x0009001C, [IntPtr]::Zero, 0, [IntPtr]::Zero, 0, [ref]$bytesRet, [IntPtr]::Zero)
+        }
     } finally {
         $fs.Dispose()
     }
@@ -1303,6 +1342,12 @@ function Invoke-RestoreCard {
 
     $fs = New-Object System.IO.FileStream($targetDeviceOrFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::ReadWrite)
     try {
+        if (-not $isFileTarget) {
+            $bytesRet = [uint32]0
+            [void][OffloadPro.DiskControl]::DeviceIoControl($fs.SafeFileHandle.DangerousGetHandle(), [uint32]0x00090018, [IntPtr]::Zero, 0, [IntPtr]::Zero, 0, [ref]$bytesRet, [IntPtr]::Zero)
+            [void][OffloadPro.DiskControl]::DeviceIoControl($fs.SafeFileHandle.DangerousGetHandle(), [uint32]0x00090020, [IntPtr]::Zero, 0, [IntPtr]::Zero, 0, [ref]$bytesRet, [IntPtr]::Zero)
+        }
+
         $bytesRead = $fs.Read($buf, 0, $bufferLen)
         if ($bytesRead -lt 512) {
             throw "Failed to read header from $targetDeviceOrFile"
@@ -1316,6 +1361,11 @@ function Invoke-RestoreCard {
         $fs.Seek(0, [System.IO.SeekOrigin]::Begin) | Out-Null
         $fs.Write($buf, 0, $bytesRead)
         $fs.Flush($true)
+
+        if (-not $isFileTarget) {
+            $bytesRet = [uint32]0
+            [void][OffloadPro.DiskControl]::DeviceIoControl($fs.SafeFileHandle.DangerousGetHandle(), [uint32]0x0009001C, [IntPtr]::Zero, 0, [IntPtr]::Zero, 0, [ref]$bytesRet, [IntPtr]::Zero)
+        }
     } finally {
         $fs.Dispose()
     }

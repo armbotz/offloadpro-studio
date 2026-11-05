@@ -1,7 +1,7 @@
-# Operational Runbook, Knowledge Base & FAQ: OffloadPro DIT Studio v4.3
+# Operational Runbook, Knowledge Base & FAQ: OffloadPro DIT Studio v4.4
 
 **Document ID:** KB-STORAGE-001  
-**Version:** 4.3.0  
+**Version:** 4.4.0  
 **Applies To:** Windows 10 / 11 (Windows PowerShell 5.1 & PowerShell 7+), FFmpeg 8+, `exFAT` / `FAT32` / `NTFS` Media Volumes (100% Zero Node.js / Zero Server)
 
 ---
@@ -10,7 +10,10 @@
 
 ### Step 1: Launch the Offline Static HTML Studio (`file://`)
 1. Double-click [`Start-OffloadPro-Studio.bat`](./Start-OffloadPro-Studio.bat) or open [`public/index.html`](./public/index.html) directly in any browser (`file://`). No background process, daemon, or localhost port is started.
-2. **(Optional) Export Hardware Volume Telemetry to the Offline UI:**
+2. **10-Foot Ambient Status Halo & DIT Soundscape:**
+   - Glance at the perimeter halo of your browser window: **Green** indicates complete parity, **Red** alerts to missing files/rot, **Amber** warns of ongoing analysis or partial checks, and **Blue** highlights card insertion.
+   - Click the **🔊 DIT Audio Chimes** toggle in the top-right toolbar to enable audible Hollywood DIT chimes (synthesized purely via Web Audio API without loading external sound files).
+3. **(Optional) Export Hardware Volume Telemetry to the Offline UI:**
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action ExportTelemetry -TargetPath "E:\Backups\Camera_Offload_001"
    ```
@@ -22,7 +25,12 @@
 Before copying a single byte, inspect the source card for **Camera Sequence Numbering Gaps** (e.g., `C0001`, `C0002`, `C0004` missing `C0003`), **Spanned-Clip Sub-Parts**, **Orphan Sidecars**, **Live Photo Pairs**, **Camera OEM Folder Signatures** (`Sony M4ROOT\CLIP`, `RED .R3D`, `Blackmagic .BRAW`, `Canon`, `DJI`, `Apple iOS`), and **`exFAT` 128 KB Cluster Slack Waste**:
 
 - **In Browser (Zero CLI):** Click **📂 Scan Folder in Browser** in Column 1 of [`public/index.html`](./public/index.html).
-- **In PowerShell CLI:**
+- **Via Native PowerShell Module:**
+  ```powershell
+  Import-Module .\modules\OffloadPro\OffloadPro.psd1
+  Start-OffloadProSession -Action Preflight -TargetPath "D:\"
+  ```
+- **Via Direct Engine Script:**
   ```powershell
   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 -Action Preflight -TargetPath "D:\"
   ```
@@ -93,20 +101,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProE
 
 ---
 
-### Step 7: Reversible DIT Safe Card Release (`FakeFormatCard` & `RestoreCard`)
-When releasing an offloaded card back to the 2nd AC (Camera Assistant), signal that it has been 100% verified by reversibly inverting the first 2 MiB (MBR/GPT/exFAT Boot Sector). The camera will immediately prompt for a clean in-camera format upon insertion, preventing duplicate recording or accidental erasure of un-offloaded cards:
+### Step 7: Reversible DIT Safe Card Release (`Clear-CameraCard` & `Undo-CardClear`)
+When releasing an offloaded card back to the 2nd AC (Camera Assistant), signal that it has been 100% verified by reversibly inverting the first 2 MiB (MBR/GPT/exFAT Boot Sector). The camera will immediately prompt for a clean in-camera format upon insertion, preventing duplicate recording or accidental erasure of un-offloaded cards.
+
+OffloadPro v4.4 dispatches Win32 `DeviceIoControl` control codes (`FSCTL_LOCK_VOLUME` `0x00090018` and `FSCTL_DISMOUNT_VOLUME` `0x00090020`) before modifying raw volume sectors, ensuring open Windows Explorer handles or background indexing services cannot cause access-denied locks:
 
 ```powershell
+# Via PowerShell Module:
+Import-Module .\modules\OffloadPro\OffloadPro.psd1
+
 # 1. Fake-Format (Inverts 2 MiB header after verifying 100% Merkle parity with backup)
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
-  -Action FakeFormatCard `
-  -SourceRoot "D:\" `
-  -DestinationRoot "E:\Backups\Camera_Offload_001"
+Clear-CameraCard -DriveLetter "D:\" -BackupPath "E:\Backups\Camera_Offload_001" -Confirm:$false
 
 # 2. Emergency Restore (If someone realizes a clip was missing, revert bits back in 1 second)
+Undo-CardClear -DriveLetter "D:\" -Confirm:$false
+
+# Direct Engine Script equivalent:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-OffloadProEngine.ps1 `
-  -Action RestoreCard `
-  -SourceRoot "D:\"
+  -Action FakeFormatCard -SourceRoot "D:\" -DestinationRoot "E:\Backups\Camera_Offload_001"
 ```
 
 ---
