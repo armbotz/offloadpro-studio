@@ -73,7 +73,7 @@ function Invoke-OffloadSession {
 
     $queue = @(foreach ($f in $allItems) {
         $rel = Get-RelativePathSafe -BasePath $safeSrc -FullPath $f.FullName
-        $inSys = $rel -match '(?i)(^|\\)(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
+        $inSys = $rel -match '(?i)(^|\\)(ascmhl|System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
         $isJunk = $f.Name.StartsWith('._') -or ($OsJunkNames -contains $f.Name.ToLowerInvariant())
         if ($MacMode -eq 'clean' -and ($inSys -or $isJunk)) { continue }
         [PSCustomObject]@{
@@ -168,12 +168,14 @@ function Invoke-OffloadSession {
     }
 
     $resObj = [PSCustomObject]@{
-        queuedFiles    = $queue.Count
-        processedFiles = $copied
-        resumedFiles   = $resumedSkipped
-        newlyCopied    = ($copied - $resumedSkipped)
-        hashMismatches = $mismatches
-        status         = $traffic
+        queuedFiles      = $queue.Count
+        processedFiles   = $copied
+        resumedFiles     = $resumedSkipped
+        newlyCopied      = ($copied - $resumedSkipped)
+        hashMismatches   = $mismatches
+        status           = $traffic
+        destinationVault = $safeDst1
+        mirrorVault      = if ($dstRoots.Count -gt 1) { $dstRoots[1] } else { $null }
     }
 
     if ($PassThru) {

@@ -6,12 +6,15 @@ function Invoke-DedupeScan {
         [int]$MaxThreads = 6
     )
     $safeArchive = Assert-SafeTargetPath -InputPath $ArchivePath -IsMutating $false
+    $manifestExts = @('.mhl', '.ale', '.csv', '.html')
     $files = @(Get-ChildItem -LiteralPath $safeArchive -File -Recurse -Force -ErrorAction SilentlyContinue |
         Where-Object {
-            -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -and
-            -not $_.Name.StartsWith('._') -and
+            $ext = if ($_.Extension) { $_.Extension.ToLowerInvariant() } else { '' }
+            (-not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) -and
+            (-not $_.Name.StartsWith('._')) -and
             ($OsJunkNames -notcontains $_.Name.ToLowerInvariant()) -and
-            $_.FullName -notmatch '(?i)\\(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
+            ($manifestExts -notcontains $ext) -and
+            ($_.FullName -notmatch '(?i)\\(ascmhl|System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)')
         })
 
     # Stage 1: Group by exact byte length (eliminates all unique-size files with zero disk I/O)

@@ -7,12 +7,15 @@ function Invoke-OrganizeByDate {
     $safeSrc = Assert-SafeTargetPath -InputPath $SourceArchive -IsMutating $false
     $safeDst = Assert-SafeTargetPath -InputPath $OrganizedRoot -IsMutating $true
 
+    $manifestExts = @('.mhl', '.ale', '.csv', '.html')
     $files = @(Get-ChildItem -LiteralPath $safeSrc -File -Recurse -Force -ErrorAction SilentlyContinue |
         Where-Object {
-            -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -and
-            -not $_.Name.StartsWith('._') -and
+            $ext = if ($_.Extension) { $_.Extension.ToLowerInvariant() } else { '' }
+            (-not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) -and
+            (-not $_.Name.StartsWith('._')) -and
             ($OsJunkNames -notcontains $_.Name.ToLowerInvariant()) -and
-            $_.FullName -notmatch '(?i)\\(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
+            ($manifestExts -notcontains $ext) -and
+            ($_.FullName -notmatch '(?i)\\(ascmhl|System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)')
         })
 
     $groupDateMap = @{}

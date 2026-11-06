@@ -6,11 +6,14 @@ function New-MhlAndCertificate {
         [int]$MaxThreads = 6
     )
     $safeArchive = Assert-SafeTargetPath -InputPath $ArchivePath -IsMutating $false
+    $manifestExts = @('.mhl', '.ale', '.csv', '.html')
     $files = @(Get-ChildItem -LiteralPath $safeArchive -File -Recurse -Force -ErrorAction SilentlyContinue |
         Where-Object {
-            -not $_.Name.StartsWith('._') -and
+            $ext = if ($_.Extension) { $_.Extension.ToLowerInvariant() } else { '' }
+            (-not $_.Name.StartsWith('._')) -and
             ($OsJunkNames -notcontains $_.Name.ToLowerInvariant()) -and
-            $_.FullName -notmatch '(?i)\\(System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
+            ($manifestExts -notcontains $ext) -and
+            ($_.FullName -notmatch '(?i)\\(ascmhl|System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)')
         })
 
     $nowIso     = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
@@ -93,12 +96,13 @@ function New-MhlAndCertificate {
         "  <hash>`n    <file>$([System.Security.SecurityElement]::Escape($_.RelPath))</file>`n    <size>$($_.Size)</size>`n    <lastmodificationdate>$($_.MTime)</lastmodificationdate>`n    <$algoTag>$($_.Hash)</$algoTag>`n  </hash>"
     }) -join "`n"
 
+    # 1. Write Legacy MHL v1.1 Manifest for backward compatibility
     $mhlXml = @"
 <?xml version="1.0" encoding="UTF-8"?>
 <hashlist version="1.1">
   <creatorinfo>
-    <name>OffloadPro DIT Studio v4.0 (Pure PowerShell Full-Roll Sealer)</name>
-    <version>4.0.0</version>
+    <name>OffloadPro DIT Studio v4.4 (Full-Roll Sealer)</name>
+    <version>4.4.0</version>
     <creationdate>$nowIso</creationdate>
     <merkle_tree_sha256>$merkleRoot</merkle_tree_sha256>
   </creatorinfo>
@@ -106,6 +110,58 @@ $mhlNodes
 </hashlist>
 "@
     Set-Content -LiteralPath $mhlPath -Value $mhlXml -Encoding UTF8
+
+    # 2. Write Official ASC-MHL v2 Specification Directory & Chain Ledger
+    try {
+        $ascmhlDir = Join-Path $safeArchive 'ascmhl'
+        if (-not (Test-Path -LiteralPath $ascmhlDir)) {
+            [void][System.IO.Directory]::CreateDirectory($ascmhlDir)
+        }
+        $genStamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
+        $genFileName = "${folderName}_${genStamp}_0001.mhl"
+        $genFilePath = Join-Path $ascmhlDir $genFileName
+
+        $ascmhlHashes = ($mhlEntries | ForEach-Object {
+            $relNorm = $_.RelPath.Replace('\', '/')
+            "    <hash>`n      <path>$([System.Security.SecurityElement]::Escape($relNorm))</path>`n      <size>$($_.Size)</size>`n      <lastmodificationdate>$($_.MTime)</lastmodificationdate>`n      <$algoTag>$($_.Hash)</$algoTag>`n    </hash>"
+        }) -join "`n"
+
+        $ascmhlGenXml = @"
+<?xml version="1.0" encoding="UTF-8"?>
+<ascmhl xmlns="urn:ASC:MHL:v2.0">
+  <header>
+    <creationdate>$nowIso</creationdate>
+    <tool>OffloadPro DIT Studio</tool>
+    <toolversion>4.4.0</toolversion>
+    <generation>1</generation>
+  </header>
+  <hashes>
+$ascmhlHashes
+  </hashes>
+</ascmhl>
+"@
+        Set-Content -LiteralPath $genFilePath -Value $ascmhlGenXml -Encoding UTF8
+
+        # Compute SHA-256 of the generation manifest for the chain ledger
+        $genBytes = [System.Text.Encoding]::UTF8.GetBytes($ascmhlGenXml)
+        $hasherSha = [System.Security.Cryptography.SHA256]::Create()
+        $genHash = [System.BitConverter]::ToString($hasherSha.ComputeHash($genBytes)).Replace('-', '').ToLowerInvariant()
+        $hasherSha.Dispose()
+
+        $chainPath = Join-Path $ascmhlDir 'ascmhl_chain.xml'
+        $chainXml = @"
+<?xml version="1.0" encoding="UTF-8"?>
+<ascmhl xmlns="urn:ASC:MHL:v2.0">
+  <ascmhl_generation generation="1">
+    <file>$genFileName</file>
+    <hash>
+      <sha256>$genHash</sha256>
+    </hash>
+  </ascmhl_generation>
+</ascmhl>
+"@
+        Set-Content -LiteralPath $chainPath -Value $chainXml -Encoding UTF8
+    } catch {}
 
     # Generate NLE Post-House CSV Manifest & Avid/DaVinci Resolve .ALE Log Exchange File
     $csvLines = New-Object 'System.Collections.Generic.List[string]'

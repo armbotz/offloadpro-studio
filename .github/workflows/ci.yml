@@ -60,3 +60,13 @@ jobs:
         shell: powershell
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-TDDTestSuite.ps1
+
+      - name: 5. Execute Maya Lin On-Set Feature Film Production Demo (PowerShell 7+)
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File .\scripts\Invoke-PersonaDemo.ps1
+
+      - name: 6. Execute Maya Lin On-Set Feature Film Production Demo (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-PersonaDemo.ps1

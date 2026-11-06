@@ -31,7 +31,8 @@ function Invoke-GenerateProxies {
             ($vidExts -contains $ext) -and
             (-not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) -and
             (-not $_.Name.StartsWith('._')) -and
-            ($OsJunkNames -notcontains $_.Name.ToLowerInvariant())
+            ($OsJunkNames -notcontains $_.Name.ToLowerInvariant()) -and
+            ($_.FullName -notmatch '(?i)\\(ascmhl|System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)')
         })
 
     Write-Host "================================================================" -ForegroundColor Cyan
