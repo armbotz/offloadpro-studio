@@ -7,6 +7,12 @@ Single-read multi-destination inline checksumming, crash-resumable checkpointing
 100% Zero Node.js | Zero npm Bloat | Zero Localhost Server | Pure Native .NET Standard
 ```
 
+<p align="center">
+  <img src="docs/screenshots/offloadpro-studio-overview.jpg" alt="OffloadPro DIT Studio Main Interface" width="100%">
+  <br>
+  <em>OffloadPro DIT Studio 3-Column Mission Control: Hardware Volume Bay & S.M.A.R.T. Health, Single-Read Offload Engine, and Standalone Verification Dock.</em>
+</p>
+
 ---
 
 ## Quickstart: Native PowerShell Module
@@ -38,6 +44,90 @@ Repair-MediaVault -PrimaryArchivePath "E:\Backups\Roll_A001" -MirrorArchivePath 
 Clear-CameraCard -CardPath "D:\" -VerifiedBackupPath "E:\Backups\Roll_A001"
 Undo-CardClear -CardPath "D:\"
 ```
+
+---
+
+## Visual Feature Walkthrough & How-To Field Guide
+
+OffloadPro DIT Studio bridges the gap between Hollywood on-set safety protocols and open-source systems programming. Here is how the complete ingest-to-vault lifecycle works:
+
+```text
+[ Camera Card (D:\) ]
+         │
+         ├───► 1. Pre-Flight X-Ray & S.M.A.R.T. (Detect gaps, slack, card health)
+         │
+         ▼
+[ Single-Read In RAM ] ────► SHA-256 Checksum Computed In-Memory (Zero Double-Read)
+         │
+         ├──────────────────────────────┬──────────────────────────────┐
+         ▼                              ▼                              ▼
+ [ Primary NVMe (E:\) ]        [ Mirror Drive (F:\) ]        [ ASC-MHL v2 & .ALE ]
+ (FlushFileBuffers HW Lock)    (Simultaneous 3-2-1 Copy)     (Chained XML Ledger)
+         │
+         ├───► 3-Level Audit (Level 1 Hash + Level 2 Container + Level 3 Frame Decode)
+         │
+         ├───► 5-Second In-Browser Parity Diff (WebCrypto Merkle Tree)
+         │
+         ▼
+ [ Reversible Card Release ] ──► Safe to hand back to camera department!
+```
+
+### Stage 1: 1-Click Launch & Zero-Server Ambient HUD
+Double-click [`Start-OffloadPro-Studio.bat`](./Start-OffloadPro-Studio.bat). OffloadPro opens immediately in your default browser using the native `file://` protocol. 
+- **Zero Background Daemons:** No Node.js runtime, Python web servers, or open localhost ports.
+- **10-Foot Ambient Status Halo:** Glance from across the DIT cart — the browser window perimeter turns **Green** (100% verified parity), **Amber** (in progress), or **Red** (rot/checksum mismatch).
+- **Web Audio DIT Chimes:** Built-in synthesis generates Hollywood-standard audible completion chimes without loading external audio assets.
+
+### Stage 2: Hardware Bay & Pre-Flight Card Diagnostics
+Insert the camera card (`D:\`). OffloadPro inspects the storage medium before moving a single byte:
+
+<p align="center">
+  <img src="docs/screenshots/offloadpro-xray-telemetry.jpg" alt="Pre-Flight Card Diagnostics and X-Ray" width="65%">
+  <br>
+  <em>Pre-Flight X-Ray: Hardware S.M.A.R.T. health, cluster slack overhead, AppleDouble (._*) forensic sidecars, and ThinkStats2 ECDF Pareto file distribution.</em>
+</p>
+
+- **S.M.A.R.T. Bus & SD Lock Tab Detection:** Confirms device physical health and flags if the physical SD write-protect tab is unlocked.
+- **exFAT 128 KB Cluster Slack Waste:** Computes exact disk sector overhead wasted by millions of small files.
+- **Sequence Gap & Orphan Sidecar Detector:** Scans clip patterns (`C0001`, `C0002`, `C0004`) to warn if a clip was skipped or deleted in-camera, and pairs `.AAE` / `.XMP` sidecars to their master footage.
+- **ThinkStats2 ECDF Pareto Skew:** Visualizes file size distributions and computes Pareto concentration (e.g. top 10% largest video files hold 85% of total payload).
+
+### Stage 3: ShotPut Pro-Style Single-Read Multi-Destination Ingest
+Configure your ingest directly in the UI dock or via native PowerShell:
+- **Single-Read In RAM:** Reads each 4 MB block from the SD card exactly once via `.NET` `[System.IO.FileStream]` with `SequentialScan` optimization.
+- **Parallel Streaming to 2+ Drives:** Writes simultaneously to Primary NVMe (`E:\`) and Secondary Backup (`F:\`) to satisfy the 3-2-1 backup rule in half the offload time.
+- **Hardware Buffer Flushing:** Calls Win32 `FlushFileBuffers` (`$fs.Flush($true)`) to ensure bytes are committed to physical NAND flash before completing.
+- **Crash-Resumable Checkpoints:** Interrupted by a loose cable? Re-run the command; existing intact files matching byte length and UTC timestamp are verified in-place (`Resumed: N`) with zero re-reads.
+
+### Stage 4: 3-Level Verification Pipeline & Rescue Profile
+Choose the verification rigor appropriate for your turn-around schedule:
+- **Level 1 (Cryptographic Hash):** Bit-for-bit SHA-256 or MD5 verification proving zero transmission bits flipped.
+- **Level 2 (Container & moov Atom Integrity):** `ffprobe` scans container headers and moov index atoms to ensure camera power was not cut mid-take.
+- **Level 3 (Deep Frame-by-Frame Decode):** Full `ffmpeg` stream decode demuxes all audio/video frames into a null sink to catch mid-stream flash cell rot.
+- **Dying Card Rescue Mode:** Automatically prioritizes small, critical files first (audio takes, LUTs, EDL/ALE metadata) before streaming large video takes on failing media.
+
+### Stage 5: ASC-MHL v2 & DaVinci Resolve `.ALE` Production Sealing
+Upon transfer completion, OffloadPro automatically writes an immutable chain of custody:
+- **`ascmhl/ascmhl_chain.xml`:** American Society of Cinematographers MHL v2 standard ledger chaining generational manifests with ISO 8601 UTC timestamps.
+- **`<RollName>.mhl`:** Legacy v1.1 XML format for Silverstack and legacy tools.
+- **`<RollName>.ale`:** Tab-delimited Avid Log Exchange manifest ready for 1-click conform in DaVinci Resolve and Avid Media Composer.
+- **Turnover CSV & HTML Certificate:** Printable, self-contained verification report with hardware drive serial numbers and audit proofs for production insurers.
+
+### Stage 6: 5-Second In-Browser "Safe-to-Pull Card" Parity Diff
+Before formatting or releasing the camera card:
+- Select the Source Card (`D:\`) and Backup Vault (`E:\`) in the browser UI.
+- The client-side WebCrypto engine filters OS clutter (`._*`, `.Spotlight-V100`, `.Trashes`), builds SHA-256 Merkle tree hashes in browser memory, and verifies 100% byte parity in under 5 seconds.
+- Gives the DIT immediate green visual clearance to clear the card.
+
+### Stage 7: Reversible Safe Card Release
+When clearing camera cards for re-use:
+- **Shift-Left Hardware Lock:** Win32 low-level formatting (`Clear-CameraCard`) is locked to physical `Removable` media; internal SSDs and network shares are rejected even with `-Force`.
+- **1-Click Undo Recovery:** `Undo-CardClear` instantly reverses the card clear if the loader realized the card was pulled early.
+
+### Stage 8: Long-Term Bitrot Scrubbing & Self-Healing Mirror Repair
+Keep archive vaults healthy over months and years:
+- **Bitrot Scrubbing (`Test-MediaArchive`):** Runs multi-threaded verification of all stored files against the sealed `ascmhl/` ledger.
+- **Self-Healing Mirror Repair (`Repair-MediaVault`):** If a corrupted clip is detected on your primary vault, OffloadPro queries your secondary 3-2-1 mirror, verifies the mirror's hash, and hot-swaps the corrupt clip with zero human intervention.
 
 ---
 
@@ -132,6 +222,8 @@ offloadpro-studio/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                         # Windows CI/CD gate (Zero-Node check, AST linter, TDD suite & persona demo)
+├── docs/
+│   └── screenshots/                       # High-resolution production UI & forensic telemetry screenshots
 ├── modules/
 │   └── OffloadPro/
 │       ├── OffloadPro.psd1                # PowerShell Module Manifest (v4.4.0, PS 5.1 & Core compatible)
