@@ -51,12 +51,12 @@ jobs:
             Write-Host "[OK] AST Verified (PS 5.1): $($s.Name)" -ForegroundColor Green
           }
 
-      - name: 3. Execute 14-Invariant TDD & Mutation Test Suite (PowerShell 7+)
+      - name: 3. Execute 18-Invariant TDD & Mutation Test Suite (PowerShell 7+)
         shell: pwsh
         run: |
           pwsh -NoProfile -File .\scripts\Invoke-TDDTestSuite.ps1
 
-      - name: 4. Execute 14-Invariant TDD & Mutation Test Suite (Windows PowerShell 5.1)
+      - name: 4. Execute 18-Invariant TDD & Mutation Test Suite (Windows PowerShell 5.1)
         shell: powershell
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-TDDTestSuite.ps1

@@ -7,7 +7,7 @@
     Copyright = '(c) 2026 OffloadPro. MIT License.'
     Description = 'Professional media offload, ASC-MHL & NLE sealer, self-healing 3-2-1 vault, and reversible card release engine.'
     PowerShellVersion = '5.1'
-    FunctionsToExport = @('Start-OffloadProSession', 'Test-MediaParity', 'Repair-MediaVault', 'Test-MediaArchive', 'New-CameraProxy', 'Clear-CameraCard', 'Undo-CardClear', 'Get-CameraCardXRay', 'Find-DuplicateMedia', 'Invoke-MediaOrganization')
+    FunctionsToExport = @('Start-OffloadProSession', 'Test-MediaParity', 'Repair-MediaVault', 'Test-MediaArchive', 'New-CameraProxy', 'Clear-CameraCard', 'Undo-CardClear', 'Get-CameraCardXRay', 'Find-DuplicateMedia', 'Invoke-MediaOrganization', 'Publish-MediaToDropbox', 'Start-OffloadProApp', 'Get-DropboxContentHash', 'Save-OffloadDropboxToken', 'Get-OffloadDropboxToken', 'Test-StudioGuiSafetyPreflight', 'Get-NextSequentialRollPath')
     CmdletsToExport = @()
     VariablesToExport = @()
     AliasesToExport = @()

@@ -21,5 +21,8 @@ desktop.ini
 .vscode/
 .idea/
 .env
+*.dpapi.txt
+OffloadProStudio.exe
+*.pdb
 
 GEMINI.md

@@ -40,7 +40,7 @@ function Assert-Condition {
 }
 
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "OffloadPro v4.3 TDD & Mutation Test Suite (14 Red/Green Tests)" -ForegroundColor Cyan
+Write-Host "OffloadPro v4.4.0 TDD & Mutation Test Suite (18 Red/Green Tests)" -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 
 try {
@@ -266,6 +266,52 @@ try {
         -Condition ($fakeFmtRes.bytesInverted -eq (2 * 1024 * 1024) -and $allInverted -and $allRestored) `
         -TestName "Test 14: Reversible DIT Safe Card Release flips 2 MiB partition header and perfectly restores it" `
         -FailureDetail "Inverted=$allInverted, Restored=$allRestored, Bytes=$($fakeFmtRes.bytesInverted)"
+
+    # Import module directly for v4.4.0 Native Desktop GUI, Pokayoke & Dropbox Cloud Sync tests
+    $ModuleManifest = Join-Path (Split-Path -Parent $ScriptDir) 'modules\OffloadPro\OffloadPro.psd1'
+    Import-Module $ModuleManifest -Force
+
+    # --- TEST 15: Dropbox 4 MB Block SHA-256 Merkle content_hash & Verified Cloud Sync ---
+    $mockCloudRoot = Join-Path $TempRoot 'Dropbox_Cloud_Mock'
+    $dbxHash = Get-DropboxContentHash -FilePath $targetPdf
+    $syncRes = Publish-MediaToDropbox -ArchivePath $BackupDir -SyncMode CertificatesOnly -MockCloudRoot $mockCloudRoot -PassThru 6>$null
+    Assert-Condition `
+        -Condition ($dbxHash.Length -eq 64 -and $syncRes.uploadedCount -ge 4 -and $syncRes.verifiedHashes -eq $syncRes.uploadedCount -and $syncRes.hashMismatches -eq 0) `
+        -TestName "Test 15: Dropbox 3-2-1 Cloud Sync computes 4 MB Block SHA-256 Merkle content_hash & verifies all deliverables" `
+        -FailureDetail "HashLen=$($dbxHash.Length), Uploaded=$($syncRes.uploadedCount), Verified=$($syncRes.verifiedHashes)"
+
+    # --- TEST 16: Windows DPAPI Credential Vault Encryption (Zero Plaintext Token on Disk) ---
+    $testVaultFile = Join-Path $TempRoot 'dropbox_token.dpapi.txt'
+    $sampleSecret  = 'sl.TestSecretDropboxToken_998877665544332211'
+    $saveRes       = Save-OffloadDropboxToken -PlainToken $sampleSecret -VaultFilePath $testVaultFile
+    $rawVaultDisk  = [System.IO.File]::ReadAllText($testVaultFile)
+    $noPlaintextOnDisk = (-not $rawVaultDisk.Contains('TestSecretDropboxToken'))
+    $roundTripSecret   = Get-OffloadDropboxToken -VaultFilePath $testVaultFile
+    Assert-Condition `
+        -Condition ($saveRes.saved -and $noPlaintextOnDisk -and ($roundTripSecret -eq $sampleSecret)) `
+        -TestName "Test 16: Windows DPAPI Credential Vault encrypts Dropbox API token with zero plaintext on disk & round-trips cleanly" `
+        -FailureDetail "Saved=$($saveRes.saved), NoPlaintext=$noPlaintextOnDisk, RoundTripMatch=$($roundTripSecret -eq $sampleSecret)"
+
+    # --- TEST 17: HCI Pokayoke Pre-Flight Safety Gates & Auto-Increment Next Roll ---
+    $samePathGate = Test-StudioGuiSafetyPreflight -SourcePath $MockSd -DestinationPath $MockSd
+    $sysPathGate  = Test-StudioGuiSafetyPreflight -SourcePath $MockSd -DestinationPath 'C:\Windows\System32'
+    $rollParent   = Join-Path $TempRoot 'AutoRollTest'
+    [void][System.IO.Directory]::CreateDirectory((Join-Path $rollParent 'SD_Card_Backup_001'))
+    $nextRollPath = Get-NextSequentialRollPath -ParentBackupDir $rollParent
+    $validGate    = Test-StudioGuiSafetyPreflight -SourcePath $MockSd -DestinationPath $nextRollPath
+    Assert-Condition `
+        -Condition ((-not $samePathGate.IsSafe) -and (-not $sysPathGate.IsSafe) -and $validGate.IsSafe -and $nextRollPath.EndsWith('SD_Card_Backup_002')) `
+        -TestName "Test 17: HCI Pokayoke Safety Pre-Flight blocks Source==Dest, blocks C:\Windows, and auto-increments SD_Card_Backup_002" `
+        -FailureDetail "SameSafe=$($samePathGate.IsSafe), SysSafe=$($sysPathGate.IsSafe), ValidSafe=$($validGate.IsSafe), NextRoll=$nextRollPath"
+
+    # --- TEST 18: Native Windows WPF Desktop GUI XAML & Headless Controller Integration ---
+    $guiDestRoll = Join-Path $TempRoot 'Backups\Gui_Roll_001'
+    $guiRes = Start-OffloadProApp -InitialSourcePath $MockSd -InitialDestinationPath $guiDestRoll -HeadlessTest 6>$null
+    $guiCertFile = Join-Path (Split-Path -Parent $guiDestRoll) 'Gui_Roll_001_Offload_Certificate.html'
+    Assert-Condition `
+        -Condition ($guiRes.WindowLoaded -and $guiRes.ControlsBoundCount -eq 41 -and $guiRes.CardClearLocked -and $guiRes.ProgressValue -eq 100 -and $guiRes.CertButtonEnabled -and (Test-Path -LiteralPath $guiCertFile)) `
+        -TestName "Test 18: Native WPF Desktop App binds 41 XAML controls, enforces Card-Release interlock, & completes verified GUI offload" `
+        -FailureDetail "Loaded=$($guiRes.WindowLoaded), Controls=$($guiRes.ControlsBoundCount), Locked=$($guiRes.CardClearLocked), Prog=$($guiRes.ProgressValue), CertBtn=$($guiRes.CertButtonEnabled)"
 
 } finally {
     Remove-Item -LiteralPath $TempRoot -Recurse -Force -ErrorAction SilentlyContinue

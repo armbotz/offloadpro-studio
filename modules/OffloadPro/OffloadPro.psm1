@@ -258,4 +258,57 @@ function Invoke-MediaOrganization {
     Invoke-OrganizeByDate -SourceArchive $SourcePath -OrganizedRoot $DestinationPath -CreateHardlinks:$UseHardlinks -PassThru:$PassThru
 }
 
-Export-ModuleMember -Function Start-OffloadProSession, Test-MediaParity, Repair-MediaVault, Test-MediaArchive, New-CameraProxy, Clear-CameraCard, Undo-CardClear, Get-CameraCardXRay, Find-DuplicateMedia, Invoke-MediaOrganization
+function Publish-MediaToDropbox {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ArchivePath,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('CertificatesOnly', 'FullRoll')]
+        [string]$SyncMode = 'CertificatesOnly',
+
+        [Parameter(Mandatory = $false)]
+        [string]$DropboxRemoteFolder = '/OffloadPro_Vault',
+
+        [Parameter(Mandatory = $false)]
+        [string]$VaultFilePath = '',
+
+        [Parameter(Mandatory = $false)]
+        [string]$MockCloudRoot = '',
+
+        [Parameter(Mandatory = $false)]
+        [switch]$PassThru
+    )
+    Invoke-DropboxCloudSync `
+        -ArchivePath $ArchivePath `
+        -SyncMode $SyncMode `
+        -DropboxRemoteFolder $DropboxRemoteFolder `
+        -VaultFilePath $VaultFilePath `
+        -MockCloudRoot $MockCloudRoot `
+        -PassThru:$PassThru
+}
+
+function Start-OffloadProApp {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        [string]$InitialSourcePath = 'D:\',
+
+        [Parameter(Mandatory = $false)]
+        [string]$InitialDestinationPath = '',
+
+        [Parameter(Mandatory = $false)]
+        [switch]$HeadlessTest,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$InProcessModal
+    )
+    Start-OffloadProStudioWindow `
+        -InitialSourcePath $InitialSourcePath `
+        -InitialDestinationPath $InitialDestinationPath `
+        -HeadlessTest:$HeadlessTest `
+        -InProcessModal:$InProcessModal
+}
+
+Export-ModuleMember -Function Start-OffloadProSession, Test-MediaParity, Repair-MediaVault, Test-MediaArchive, New-CameraProxy, Clear-CameraCard, Undo-CardClear, Get-CameraCardXRay, Find-DuplicateMedia, Invoke-MediaOrganization, Publish-MediaToDropbox, Start-OffloadProApp, Get-DropboxContentHash, Save-OffloadDropboxToken, Get-OffloadDropboxToken, Test-StudioGuiSafetyPreflight, Get-NextSequentialRollPath
