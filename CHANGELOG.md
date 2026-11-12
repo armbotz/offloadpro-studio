@@ -4,9 +4,19 @@ All notable changes to this project are documented in this file following the [K
 
 ---
 
-## [v4.4.0] - 2026-11-05 (Final Golden Master)
+## [v4.4.0] - 2026-11-11 (Final Golden Master)
 
 ### Added
+- **Native Windows `.NET` WPF Desktop Application & Cross-Platform macOS Launcher:**
+  - Built native Windows `.NET` WPF (`PresentationFramework`) desktop app (`Start-OffloadProApp` and locally compiled `OffloadProStudio.exe` via `scripts/Build-OffloadProExe.ps1`) with 41 bound XAML controls, 10-foot status halo banner, non-blocking independent process launch, and 4 workflow tabs.
+  - Added Pokayoke pre-flight safety gate (`Test-StudioGuiSafetyPreflight`), 1-click sequential roll auto-increment (`Get-NextSequentialRollPath`), and two-step safety interlock checkbox for card release.
+  - Added `Start-OffloadPro-Mac.command` for macOS Finder with native AppleScript (`osascript`) folder-picker dialogs.
+- **Dropbox 3-2-1 Cloud Sync & Windows DPAPI Credential Vault:**
+  - Added `Publish-MediaToDropbox`, `Get-DropboxContentHash`, `Save-OffloadDropboxToken`, and `Get-OffloadDropboxToken` (`modules/OffloadPro/Private/Invoke-DropboxSync.ps1`).
+  - Computes Dropbox's official 4 MB (`4,194,304` byte) Block SHA-256 Merkle Tree `content_hash` locally and verifies cloud upload parity.
+  - Encrypts API tokens outside the repository using Windows DPAPI (`%LOCALAPPDATA%\OffloadPro\Vault\dropbox_token.dpapi.txt`) with AES-256 fallback on macOS/Linux.
+- **Expanded 18-Test Red/Green TDD & Mutation Test Suite:**
+  - Added Tests 15–18 in `scripts/Invoke-TDDTestSuite.ps1` testing Dropbox 4 MB Block SHA-256 `content_hash`, DPAPI token encryption, Pokayoke pre-flight safety gates, and headless WPF Desktop GUI execution.
 - **Official ASC-MHL v2 Specification Implementation:**
   - Automated generation of the standardized `ascmhl/` directory at the archive root.
   - Implemented `ascmhl/ascmhl_chain.xml` cryptographic chain ledger and generational manifest linking (`<ascmhl xmlns="urn:ASC:MHL:v2.0">`).

@@ -24,10 +24,15 @@ OffloadPro enforces **Aggregate-Only Telemetry**:
 
 ---
 
-## 3. Filesystem & On-Set Cart Safety Guards
+## 3. Filesystem, Pokayoke GUI & On-Set Cart Safety Guards
 
-1. **System Directory Blocklist (`Assert-SafeTargetPath`):** Blocks any read or mutating operation targeting `C:\Windows`, `C:\Program Files`, `C:\Program Files (x86)`, `C:\ProgramData`, `C:\System Volume Information`, or mutating operations on `C:\` root.
-2. **NTFS Junction & Symlink Loop Immunity:** Directory walks explicitly filter out `[System.IO.FileAttributes]::ReparsePoint` (and `robocopy` commands enforce `/XJ`) so cyclical symlinks or junctions can never cause infinite recursion.
+1. **Cross-Platform System Directory Blocklist (`Assert-SafeTargetPath`):** Blocks any read or mutating operation targeting Windows system directories (`C:\Windows`, `C:\Program Files`, `C:\Program Files (x86)`, `C:\ProgramData`, `C:\System Volume Information`, `C:\` root) as well as macOS/POSIX system roots (`/`, `/System`, `/Library`, `/usr`, `/bin`, `/sbin`, `/etc`).
+2. **Pokayoke GUI Pre-Flight Safety Gate & Card-Release Interlock (`Invoke-StudioGuiController.ps1`):**
+   - Dynamically disables the GUI Start button if `Source == Destination`, if Destination is nested inside Source, or if destination free space is smaller than the source payload (**Test 17**).
+   - Physically locks the `Safe-Clear Card (2 MiB XOR)` button (`IsEnabled="False"`) behind an explicit two-step safety unlock checkbox (**Test 18**).
+3. **Windows DPAPI Hardware-Bound Credential Vault (`Invoke-DropboxSync.ps1`):**
+   - Encrypts Dropbox API tokens via Windows Data Protection API (`ConvertFrom-SecureString`) outside the repository (`%LOCALAPPDATA%\OffloadPro\Vault\dropbox_token.dpapi.txt`) so zero plaintext secrets ever touch disk or Git (**Test 16**).
+4. **NTFS Junction & Symlink Loop Immunity:** Directory walks explicitly filter out `[System.IO.FileAttributes]::ReparsePoint` (and `robocopy` commands enforce `/XJ`) so cyclical symlinks or junctions can never cause infinite recursion.
 3. **3-Tier Sidecar Protection Invariant:** Cleanup operations (`Invoke-MacMetadataForensics.ps1` and `-MacMode clean`) strictly target Tier-2 OS clutter (`._*`, `.DS_Store`, `Thumbs.db`, `desktop.ini`) and **never** delete Tier-1 creative sidecars (`.AAE`, `.XMP`, `.SRT`, `.XML`, `.BIM`, `.CPI`, `.MPL`, `.VTT`, `.CUBE`, `.3DL`, `.THM`, `.LRV`).
 4. **Pre-Flight Free-Space & Roll-Collision Gates:**
    - Requires `AvailableFreeSpace >= PayloadBytes + max(64 MB, 5% Payload)` on all destination drives before copying starts.

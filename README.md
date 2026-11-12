@@ -1,27 +1,47 @@
 # OffloadPro DIT Studio v4.4.0
 
-**Professional Open-Source Media Offload & DIT Archival Engine for Windows (PowerShell 5.1 & 7+).**  
-Single-read multi-destination inline checksumming, crash-resumable checkpointing, native **ASC-MHL v2 (`ascmhl/`)** and legacy MHL v1.1 sealing, DaVinci Resolve & Avid `.ALE` generation, self-healing 3-2-1 vault repair, Win32 hardware-locked card release, and zero-server static HTML UI.
+**Professional Open-Source Media Offload & DIT Archival Engine for Windows & macOS (PowerShell 5.1 & 7+).**  
+Native **Windows `.NET` WPF Desktop Application (`Start-OffloadProApp` / `OffloadProStudio.exe`)**, native **macOS AppleScript Finder Launcher (`Start-OffloadPro-Mac.command`)**, single-read multi-destination inline checksumming, crash-resumable checkpointing, native **ASC-MHL v2 (`ascmhl/`)** and legacy MHL v1.1 sealing, DaVinci Resolve & Avid `.ALE` generation, self-healing 3-2-1 vault repair, **Dropbox 3-2-1 Cloud Sync (`4 MB` Block SHA-256 `content_hash` + Windows DPAPI Vault)**, Win32 hardware-locked card release, and zero-server static HTML UI.
 
 ```text
-100% Zero Node.js | Zero npm Bloat | Zero Localhost Server | Pure Native .NET Standard
+100% Zero Node.js | Zero npm Bloat | Zero Localhost Server | Native WPF GUI + Cross-Platform .NET
 ```
 
 <p align="center">
   <img src="docs/screenshots/offloadpro-studio-overview.jpg" alt="OffloadPro DIT Studio Main Interface" width="100%">
   <br>
-  <em>OffloadPro DIT Studio 3-Column Mission Control: Hardware Volume Bay & S.M.A.R.T. Health, Single-Read Offload Engine, and Standalone Verification Dock.</em>
+  <em>OffloadPro DIT Studio: Native Windows WPF Desktop App + Offline HTML Mission Control, Single-Read Offload Engine, and 3-2-1 Verification Dock.</em>
 </p>
 
 ---
 
-## Quickstart: Native PowerShell Module
+## Quickstart: 3 Ways to Launch & Run OffloadPro
 
-OffloadPro is packaged as a standard PowerShell module. No compilation or administrative installation required:
+### Option A: 1-Click Native Desktop App (Windows WPF & macOS Finder)
+
+1. **On Windows (Zero Terminal Needed):**
+   - Double-click **[`Start-OffloadPro-Studio.bat`](./Start-OffloadPro-Studio.bat)** (or compile a standalone **`OffloadProStudio.exe`** binary in 1 second via `.\scripts\Build-OffloadProExe.ps1`).
+   - Opens the **Native Windows `.NET` WPF Desktop Application** (`Start-OffloadProApp`) featuring:
+     - **10-Foot Ambient Status Halo Banner** (`READY` &rarr; `OFFLOADING` &rarr; `VERIFIED SEALED (0 MISMATCHES)`).
+     - **Pokayoke Pre-Flight Safety Gate:** Real-time validation blocking `Source == Destination`, nested paths, OS system directories (`C:\Windows`, `/System`), and insufficient free disk space before you can click Start.
+     - **1-Click `Next Roll (+001)` Auto-Increment:** Automatically selects the next unused backup folder (`SD_Card_Backup_001` &rarr; `SD_Card_Backup_002` &rarr; `SD_Card_Backup_003`) to prevent roll collisions.
+     - **4 Ergonomic Workflow Tabs:** *(1) Offload & Seal*, *(2) Verify, Heal & Organize Vault*, *(3) Dailies Proxies & Two-Step Interlocked Card Release*, and *(4) Dropbox 3-2-1 Cloud Sync*.
+2. **On macOS (Double-Clickable in Finder):**
+   - Double-click **[`Start-OffloadPro-Mac.command`](./Start-OffloadPro-Mac.command)** in Finder to launch native macOS Finder folder-picker dialogs (`osascript`) for `/Volumes/<Card>` and your backup drive.
+3. **Offline Static HTML Dashboard (`file://`):**
+   - Run `Start-OffloadPro-Studio.bat --html` or open [`public/index.html`](./public/index.html) directly in any browser.
+
+### Option B: Native PowerShell Module (`OffloadPro.psd1`)
+
+OffloadPro is packaged as a standard PowerShell module. No external dependencies or administrative installation required:
 
 ```powershell
 # Import the module
 Import-Module .\modules\OffloadPro\OffloadPro.psd1 -Force
+
+# 0. Launch the Native Desktop GUI Window (or compile OffloadProStudio.exe)
+Start-OffloadProApp
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build-OffloadProExe.ps1
 
 # 1. Dual-Destination Ingest with Inline SHA-256, ASC-MHL v2 & DaVinci Resolve .ALE
 Start-OffloadProSession `
@@ -40,7 +60,11 @@ Test-MediaArchive -ArchivePath "E:\Backups\Roll_A001"
 # 4. Self-Healing Bitrot Repair from Mirror Drive
 Repair-MediaVault -PrimaryArchivePath "E:\Backups\Roll_A001" -MirrorArchivePath "F:\Backups\Roll_A001"
 
-# 5. Reversible Safe Card Release (Locked to Physical Removable Drives)
+# 5. Dropbox 3-2-1 Cloud Sync (Windows DPAPI Encrypted Token + 4 MB Block SHA-256 Verification)
+Save-OffloadDropboxToken -PlainToken "<YOUR_DROPBOX_SCOPED_TOKEN>"
+Publish-MediaToDropbox -ArchivePath "E:\Backups\Roll_A001" -SyncMode CertificatesOnly
+
+# 6. Reversible Safe Card Release (Locked to Physical Removable Drives)
 Clear-CameraCard -CardPath "D:\" -VerifiedBackupPath "E:\Backups\Roll_A001"
 Undo-CardClear -CardPath "D:\"
 ```
@@ -149,8 +173,8 @@ Keep archive vaults healthy over months and years:
 | :--- | :--- |
 | **🎬 On-Set DITs & Digital Loaders** | Single-read dual-destination streaming (`SequentialScan` + `FlushFileBuffers`), **ASC-MHL v2 (`ascmhl/`)** + `.ALE` deliverables, tokenized folder naming (`-CameraId` / `-RollId`), **Crash-Resumable Checkpointing** (0 re-reads of intact clips after power interruption), and **Reversible Safe Card Release** (`Clear-CameraCard`). |
 | **📷 Hybrid Shooters & Drone Pilots** | Protection of Tier-1 creative sidecars (`.AAE` iOS edits, `.XMP` Lightroom metadata, `.SRT` DJI drone logs, `.CUBE` LUTs) and **`-Action OrganizeByDate`** (`YYYY\YYYY-MM-DD`) that glues Live Photos and edited sidecars to their parent capture date. |
-| **🗄️ `/r/DataHoarder` & Archival Vaults** | **Self-Healing 3-2-1 Vault Repair (`Repair-MediaVault`)**, **Two-Stage O(1) Size + Multi-Threaded Hash Deduplication (`Find-DuplicateMedia`)**, and cross-archive Merkle parity comparator (`Test-MediaParity`). |
-| **🧪 DevSecOps & Enterprise IT** | **Zero Node.js / Zero Server** attack surface, **Shift-Left Removable Hardware Locks** (`Removable` media enforcement, UNC path blocking, Win32 `DeviceIoControl` return validation), Zero-PII console invariant, and a 14-test deterministic regression suite. |
+| **🗄️ `/r/DataHoarder` & Archival Vaults** | **Self-Healing 3-2-1 Vault Repair (`Repair-MediaVault`)**, **Dropbox 3-2-1 Cloud Sync (`Publish-MediaToDropbox`)**, **Two-Stage O(1) Size + Multi-Threaded Hash Deduplication (`Find-DuplicateMedia`)**, and cross-archive Merkle parity comparator (`Test-MediaParity`). |
+| **🧪 DevSecOps & Enterprise IT** | **Zero Node.js / Zero Server** attack surface, **Native `.NET` WPF Desktop App with Pokayoke Safety Interlocks**, **Shift-Left Removable Hardware Locks**, Windows DPAPI Credential Vault, Zero-PII console invariant, and an **18-test deterministic regression suite**. |
 
 ---
 
@@ -159,17 +183,19 @@ Keep archive vaults healthy over months and years:
 1. **Removable Media Hardware Lock (`Clear-CameraCard`):** Raw sector writes (`\\.\X:`) are hard-locked to require `DriveType.Removable`. Targeting `Fixed` (internal SSDs), `Network` (SAN/NAS), or `RAMDisk` drives is strictly blocked even with `-Force`.
 2. **Network UNC Path Block:** Any target path starting with network shares (`\\server\share`) is blocked immediately.
 3. **Win32 Kernel Volume Locking:** Validates return codes from `kernel32!DeviceIoControl` (`FSCTL_LOCK_VOLUME`, `FSCTL_DISMOUNT_VOLUME`, `FSCTL_UNLOCK_VOLUME`), aborting safely if any process holds an active file handle.
-4. **Ledger Anti-Contamination:** Directory walkers strictly ignore `ascmhl/`, `*.mhl`, `*.ale`, `*.csv`, and `*.html` so resumed offloads never re-hash existing manifests into new generations.
-5. **Zero-PII Invariant:** All console logging outputs only aggregate counters; no personal filenames or shoot directories are ever written to `stdout`.
+4. **Pokayoke GUI Pre-Flight Safety Gate (`Test-StudioGuiSafetyPreflight`):** Real-time GUI validation blocks `Source == Destination`, nested destination folders, Windows (`C:\Windows`, `C:\Program Files`) and macOS (`/System`, `/Library`) protected directories, and enforces a two-step safety unlock checkbox for card release.
+5. **Windows DPAPI Hardware-Bound Credential Vault:** Dropbox API tokens (`Save-OffloadDropboxToken`) are encrypted via Windows DPAPI (`ConvertFrom-SecureString`) outside the repository (`%LOCALAPPDATA%\OffloadPro\Vault`) with zero plaintext on disk.
+6. **Ledger Anti-Contamination:** Directory walkers strictly ignore `ascmhl/`, `*.mhl`, `*.ale`, `*.csv`, and `*.html` so resumed offloads never re-hash existing manifests into new generations.
+7. **Zero-PII Invariant:** All console logging outputs only aggregate counters; no personal filenames or shoot directories are ever written to `stdout`.
 
 ---
 
 ## Automated Verification & Regression Gates
 
-Verify all 14 architectural invariants (camera OEM recognition, full-roll ASC-MHL sealing, 1-bit mutation detection, self-healing mirror repair, crash-resumable checkpoints, roll-collision safety, and zero-PII privacy) in 3 seconds:
+Verify all **18 architectural invariants** (camera OEM recognition, full-roll ASC-MHL sealing, 1-bit mutation detection, self-healing mirror repair, crash-resumable checkpoints, roll-collision safety, zero-PII privacy, Dropbox 4 MB Block SHA-256 `content_hash`, DPAPI token encryption, Pokayoke pre-flight gates, and headless Native WPF Desktop GUI execution) in seconds:
 
 ```powershell
-# 1. Run the 14-Invariant TDD & Mutation Suite
+# 1. Run the 18-Invariant TDD & Mutation Suite
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-TDDTestSuite.ps1
 
 # 2. Run the Maya Lin On-Set Feature Film Production Demo
@@ -195,11 +221,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-PersonaDemo
 | **Level 3** | **`ffmpeg` Deep End-to-End Stream & Frame Decode** | Demuxes 100% of every media file from byte `0` to the end and decodes video keyframes, all audio frames, and all photos into a null sink (`-f null -`) to catch mid-stream flash sector bitrot. |
 | **Vault Scrub** | **`-Action VerifyMhl` Multi-Threaded Bitrot Verifier** | Re-verifies 100% of an archive drive against its sealed `.mhl` XML ledger across 6 threads months or years later to detect silent SSD/HDD sector decay. |
 
-### 3. 5-Second "Safe to Pull Card" Parity Diff (`Source D:\` vs. `Backup E:\` in Browser)
+### 3. Dropbox 3-2-1 Cloud Sync with 4 MB Block SHA-256 `content_hash` Verification
+- Completes the **"1" (Off-Site Cloud Copy)** of the 3-2-1 backup rule using pure `.NET` HTTP streaming (`Publish-MediaToDropbox`).
+- Computes Dropbox's official **4 MB (`4,194,304` byte) Block SHA-256 Merkle Tree `content_hash`** (`Get-DropboxContentHash`) locally before upload and verifies that Dropbox's cloud server returns an identical `content_hash`.
+- Supports **Instant Certificates & Manifests Sync** (`-SyncMode CertificatesOnly`) or **Full Verified Roll Sync** (`-SyncMode FullRoll`).
+
+### 4. 5-Second "Safe to Pull Card" Parity Diff (`Source D:\` vs. `Backup E:\` in Browser)
 - Select **Source (`D:\`)** and **Backup (`E:\`)** directly in [`public/index.html`](./public/index.html) (`webkitdirectory`).
 - Automatically filters out Tier-2/Tier-3 OS clutter (`._*`, `.DS_Store`, `.Spotlight-V100`, `.Trashes`, `System Volume Information`), computes both `SHA-256` Tree Structure Merkle Roots client-side via WebCrypto, and verifies `0 missing clips` and `0 byte delta` in under 5 seconds — without printing a single personal filename.
 
-### 4. Non-Destructive Sidecar-Glued Date Organizer (`-Action OrganizeByDate`)
+### 5. Non-Destructive Sidecar-Glued Date Organizer (`-Action OrganizeByDate`)
 - Organizes camera dumps into clean `YYYY\YYYY-MM-DD` folders (via copy or instant NTFS hardlinks `-UseHardlinks`).
 - **Live-Photo & Edited Sidecar Gluing:** Determines each clip group's canonical capture date from the primary photo/video first, so `.AAE` edits or `.XMP` ratings modified months later stay in the exact same `YYYY\YYYY-MM-DD` folder as their parent `IMG_xxxx.JPG`/`.HEIC`/`.MOV`.
 
@@ -221,28 +252,30 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-PersonaDemo
 offloadpro-studio/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                         # Windows CI/CD gate (Zero-Node check, AST linter, TDD suite & persona demo)
+│       └── ci.yml                         # Windows CI/CD gate (Zero-Node check, AST linter, 18-test TDD suite & demo)
 ├── docs/
 │   └── screenshots/                       # High-resolution production UI & forensic telemetry screenshots
 ├── modules/
 │   └── OffloadPro/
 │       ├── OffloadPro.psd1                # PowerShell Module Manifest (v4.4.0, PS 5.1 & Core compatible)
-│       ├── OffloadPro.psm1                # Public cmdlets (Start-OffloadProSession, Test-MediaParity, etc.)
-│       └── Private/                       # 21 modularized in-process engine components
+│       ├── OffloadPro.psm1                # Public cmdlets (Start-OffloadProApp, Start-OffloadProSession, etc.)
+│       └── Private/                       # 23 modularized in-process engine, GUI controller & Dropbox sync components
 ├── public/
 │   ├── index.html                         # Standalone offline static HTML Studio UI (file://, Halo & Web Audio)
 │   └── offloadpro-telemetry.js            # Aggregate telemetry snapshot loaded offline by index.html
 ├── scripts/
+│   ├── Build-OffloadProExe.ps1            # Compiles native Windows desktop launcher (OffloadProStudio.exe)
 │   ├── Invoke-OffloadProEngine.ps1        # Thin backward-compatible CLI bridge to the PowerShell module
 │   ├── Invoke-3LevelAudit.ps1             # Multi-threaded PowerShell 3-Level Audit CLI (MD5 + FFprobe + FFmpeg Decode)
 │   ├── Invoke-MacMetadataForensics.ps1    # macOS ._* AppleDouble string extractor & Tier-2 OS junk cleaner
-│   ├── Invoke-TDDTestSuite.ps1            # 14-Invariant Red/Green TDD & Bit-Flip Mutation Test Runner
+│   ├── Invoke-TDDTestSuite.ps1            # 18-Invariant Red/Green TDD & Bit-Flip Mutation Test Runner
 │   └── Invoke-PersonaDemo.ps1             # Maya Lin On-Set Feature Film Production Simulation Demo
 ├── ARCHITECTURE.md                        # Systems & mathematical architecture deep dive
 ├── CHANGELOG.md                           # Version history & release notes
-├── SECURITY_AND_PRIVACY.md                # Zero-Server, Merkle privacy & cart safety documentation
+├── SECURITY_AND_PRIVACY.md                # Zero-Server, DPAPI vault, Pokayoke & cart safety documentation
 ├── RUNBOOK.md                             # Complete operational & CLI runbook / KB article
 ├── LICENSE                                # MIT Open-Source License
-├── Start-OffloadPro-Studio.bat            # 1-Click offline HTML Studio launcher (zero server)
+├── Start-OffloadPro-Studio.bat            # 1-Click Native Windows Desktop App launcher (or --html browser UI)
+├── Start-OffloadPro-Mac.command           # 1-Click Native macOS Finder launcher (osascript + pwsh)
 └── .gitignore                             # Git ignore rules
 ```

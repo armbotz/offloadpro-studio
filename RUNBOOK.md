@@ -8,9 +8,15 @@
 
 ## Part 1: Step-by-Step Operational Runbook
 
-### Step 1: Launch the Offline Static HTML Studio (`file://`)
-1. Double-click [`Start-OffloadPro-Studio.bat`](./Start-OffloadPro-Studio.bat) or open [`public/index.html`](./public/index.html) directly in any browser (`file://`). No background process, daemon, or localhost port is started.
-2. **10-Foot Ambient Status Halo & DIT Soundscape:**
+### Step 1: Launch OffloadPro Studio (Native Windows Desktop App, macOS Finder, or Offline HTML)
+1. **Native Windows Desktop App (Recommended):**
+   - Double-click [`Start-OffloadPro-Studio.bat`](./Start-OffloadPro-Studio.bat) (or compile and launch `OffloadProStudio.exe` via `.\scripts\Build-OffloadProExe.ps1`, or run `Start-OffloadProApp` after importing `OffloadPro.psd1`).
+   - Use **Auto-Detect Card**, **Next Roll (`+001`)**, **Step 1: X-Ray Source Card**, and **Step 2: Start Verified Offload & Seal** directly inside the native desktop window.
+2. **Native macOS Finder App:**
+   - Double-click [`Start-OffloadPro-Mac.command`](./Start-OffloadPro-Mac.command) to select `/Volumes/<Card>` and your backup vault using native macOS Finder dialogs.
+3. **Offline Static HTML Studio (`file://`):**
+   - Run `Start-OffloadPro-Studio.bat --html` or open [`public/index.html`](./public/index.html) directly in any browser (`file://`). No background process, daemon, or localhost port is started.
+4. **10-Foot Ambient Status Halo & DIT Soundscape:**
    - Glance at the perimeter halo of your browser window: **Green** indicates complete parity, **Red** alerts to missing files/rot, **Amber** warns of ongoing analysis or partial checks, and **Blue** highlights card insertion.
    - Click the **🔊 DIT Audio Chimes** toggle in the top-right toolbar to enable audible Hollywood DIT chimes (synthesized purely via Web Audio API without loading external sound files).
 3. **(Optional) Export Hardware Volume Telemetry to the Offline UI:**
