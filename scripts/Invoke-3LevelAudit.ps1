@@ -48,11 +48,16 @@ function Set-AuditAwakeLock {
 $ffprobeCmd = (Get-Command ffprobe -ErrorAction SilentlyContinue).Source
 $ffmpegCmd  = (Get-Command ffmpeg -ErrorAction SilentlyContinue).Source
 
+$manifestExts = @('.mhl', '.ale')
 $files = @(Get-ChildItem -LiteralPath $DestinationRoot -File -Recurse -Force -ErrorAction SilentlyContinue |
     Where-Object {
+        $ext = if ($_.Extension) { $_.Extension.ToLowerInvariant() } else { '' }
+        (-not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) -and
         $_.Name -notlike '._*' -and
-        $_.Name -ne '.DS_Store' -and
-        $_.FullName -notmatch '\\(System Volume Information|\.Spotlight-V100|\.Trashes)(\\|$)'
+        $_.Name -notin @('.DS_Store', 'Thumbs.db', 'desktop.ini') -and
+        ($manifestExts -notcontains $ext) -and
+        ($_.Name -notmatch '(?i)(_PostHouse_Manifest\.csv|_Offload_Certificate\.html)$') -and
+        $_.FullName -notmatch '(?i)\\(ascmhl|System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
     })
 
 Write-Host "================================================================" -ForegroundColor Cyan
@@ -100,7 +105,8 @@ try {
         return $null
     }
 
-    foreach ($f in $files) {
+    $l2Candidates = @($files | Where-Object { $_.Extension -match '(?i)^\.(mov|mp4|3gp|m4v|mxf|mkv|avi|r3d|braw|ari|jpg|jpeg|heic|png|wav|mp3|m4a|aif|aiff|pdf)$' })
+    foreach ($f in $l2Candidates) {
         $ps = [powershell]::Create().AddScript($sbLevel2).AddArgument($f.FullName).AddArgument($f.Length).AddArgument($f.Extension).AddArgument($ffprobeCmd)
         $ps.RunspacePool = $pool2
         $jobs2.Add([PSCustomObject]@{ Pipe = $ps; Handle = $ps.BeginInvoke() })

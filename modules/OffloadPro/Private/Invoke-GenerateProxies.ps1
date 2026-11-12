@@ -36,10 +36,8 @@ function Invoke-GenerateProxies {
         })
 
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "OffloadPro v4.2 Editorial & Dailies Proxy Engine (FFmpeg)" -ForegroundColor Cyan
+    Write-Host "OffloadPro v4.4 Editorial & Dailies Proxy Engine (FFmpeg)" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "Source Master Vault      : $safeSrc"
-    Write-Host "Destination Proxy Vault  : $safeDst"
     Write-Host "Target Video Clips       : $($sourceFiles.Count)"
     Write-Host "Proxy Profile            : H.264 $Resolution ($Encoder) | Burn-In: $(if ($BurnIn) { 'Active' } else { 'Off' })"
 

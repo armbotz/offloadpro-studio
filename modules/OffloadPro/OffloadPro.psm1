@@ -9,6 +9,10 @@
 
 $RepoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $PrivateDir = Join-Path $PSScriptRoot 'Private'
+$TelemetryJsPath = Join-Path $RepoRoot 'public\offloadpro-telemetry.js'
+$CreativeSidecarExts = @('.aae', '.xmp', '.xml', '.bim', '.cpi', '.mpl', '.srt', '.vtt', '.cube', '.3dl', '.thm', '.lrv')
+$OsJunkNames         = @('.ds_store', 'thumbs.db', 'desktop.ini')
+$script:ExitCodeToReturn = 0
 
 # Dot-source all private functions
 if (Test-Path -LiteralPath $PrivateDir) {

@@ -64,7 +64,9 @@ function Invoke-PreflightScan {
         $relUpper = $rel.Replace('/', '\').ToUpperInvariant()
         $nameLower = $f.Name.ToLowerInvariant()
         $ext = if ($f.Extension) { $f.Extension.ToLowerInvariant() } else { '.noext' }
-        $inSys = $rel -match '(?i)(^|\\)(ascmhl|System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)'
+        $inSys = ($rel -match '(?i)(^|\\)(ascmhl|System Volume Information|\.Spotlight-V100|\.Trashes|\.fseventsd)(\\|$)') -or
+                 ($ext -in @('.mhl', '.ale')) -or
+                 ($nameLower -match '(_posthouse_manifest\.csv|_offload_certificate\.html)$')
 
         # Lead DIT Camera-Vendor OEM Folder & Container Fingerprinting
         if ($relUpper.Contains('M4ROOT\CLIP') -or $relUpper.Contains('XDROOT')) {

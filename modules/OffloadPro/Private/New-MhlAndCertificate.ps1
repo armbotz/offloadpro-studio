@@ -3,7 +3,9 @@ function New-MhlAndCertificate {
         [string]$ArchivePath,
         [string]$HashAlgorithm,
         [hashtable]$PrecomputedHashes = $null,
-        [int]$MaxThreads = 6
+        [int]$MaxThreads = 6,
+        [int]$HashMismatches = 0,
+        [string]$StreamAuditStatus = '100% Container Verified'
     )
     $safeArchive = Assert-SafeTargetPath -InputPath $ArchivePath -IsMutating $false
     $manifestExts = @('.mhl', '.ale', '.csv', '.html')
@@ -303,8 +305,8 @@ $ascmhlHashes
   <div class="card">
     <div class="header">
       <div>
-        <h1 style="margin:0;font-size:24px;">OffloadPro DIT Studio v4.0 &mdash; Camera Roll Verification Certificate</h1>
-        <p style="margin:6px 0 0;color:#94a3b8;">Generated: $nowIso | Capture Window: $dateRangeFormatted | Deliverables: .MHL + .ALE + .CSV</p>
+        <h1 style="margin:0;font-size:24px;">OffloadPro DIT Studio v4.4.0 &mdash; Camera Roll Verification Certificate</h1>
+        <p style="margin:6px 0 0;color:#94a3b8;">Generated: $nowIso | Capture Window: $dateRangeFormatted | Deliverables: ASC-MHL v2 + .MHL + .ALE + .CSV</p>
       </div>
       <div class="stamp">&#10003; 100% FULL-ROLL ASC-MHL &amp; NLE SEALED</div>
     </div>
@@ -312,8 +314,8 @@ $ascmhlHashes
       <div class="metric"><div class="label">100% Sealed Media Files</div><div class="val">$($mhlEntries.Count) / $($files.Count) Files</div></div>
       <div class="metric"><div class="label">Total Archive Payload</div><div class="val">$([Math]::Round($totalBytes / 1GB, 2)) GB</div></div>
       <div class="metric"><div class="label">Total Playable Duration</div><div class="val" style="color:#38bdf8;">$durationFormatted</div></div>
-      <div class="metric"><div class="label">Level 1 Cryptographic Seal</div><div class="val" style="color:#34d399;">0 Mismatches ($HashAlgorithm)</div></div>
-      <div class="metric"><div class="label">Level 2 &amp; 3 Stream Decode</div><div class="val" style="color:#34d399;">100% Playable</div></div>
+      <div class="metric"><div class="label">Level 1 Cryptographic Seal</div><div class="val" style="color:$(if ($HashMismatches -eq 0) { '#34d399' } else { '#f87171' });">$HashMismatches Mismatches ($HashAlgorithm)</div></div>
+      <div class="metric"><div class="label">Level 2 &amp; 3 Stream Audit</div><div class="val" style="color:$(if ($StreamAuditStatus -match 'Warning|Blocked') { '#fbbf24' } else { '#34d399' });font-size:17px;">$StreamAuditStatus</div></div>
       <div class="metric"><div class="label">Capture Date Range</div><div class="val" style="font-size:15px;">$dateRangeFormatted</div></div>
     </div>
     <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.35);padding:12px;border-radius:9px;margin-bottom:20px;font-size:12px;">

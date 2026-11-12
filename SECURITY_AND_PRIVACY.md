@@ -6,7 +6,7 @@ OffloadPro DIT Studio is architected from the ground up around **zero network ex
 
 ## 1. Zero Node.js & Zero Localhost Server Attack Surface
 
-- **No Background Daemons or Open Ports:** OffloadPro runs 100% as native PowerShell scripts (`scripts/*.ps1`), a signed PowerShell module (`modules/OffloadPro`), and a static offline HTML interface (`public/index.html`) opened directly via `file://`.
+- **No Background Daemons or Open Ports:** OffloadPro runs 100% as native PowerShell scripts (`scripts/*.ps1`), a manifest-versioned PowerShell module (`modules/OffloadPro`), and a static offline HTML interface (`public/index.html`) opened directly via `file://`.
 - **Zero `npm` Supply-Chain Exposure:** There is no `package.json`, no `node_modules`, and no third-party JavaScript libraries or CDNs.
 - **GitHub Actions Enforcement (`.github/workflows/ci.yml`):** Every push and pull request runs an automated CI gate that fails immediately if `server.js`, `package.json`, `.offloadpro.local.json`, or any `.mhl` manifest is committed.
 

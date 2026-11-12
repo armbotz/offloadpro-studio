@@ -116,13 +116,13 @@ Upon transfer completion, OffloadPro automatically writes an immutable chain of 
 ### Stage 6: 5-Second In-Browser "Safe-to-Pull Card" Parity Diff
 Before formatting or releasing the camera card:
 - Select the Source Card (`D:\`) and Backup Vault (`E:\`) in the browser UI.
-- The client-side WebCrypto engine filters OS clutter (`._*`, `.Spotlight-V100`, `.Trashes`), builds SHA-256 Merkle tree hashes in browser memory, and verifies 100% byte parity in under 5 seconds.
+- The client-side WebCrypto engine filters OS clutter (`._*`, `.Spotlight-V100`, `.Trashes`), computes a SHA-256 Tree Structure Merkle Root over sorted `relativePath:byteLength` descriptors in browser memory, and verifies `0 missing clips` and `0 byte-size delta` in under 5 seconds (complementing the Level 1 PowerShell bit-for-bit content hash).
 - Gives the DIT immediate green visual clearance to clear the card.
 
 ### Stage 7: Reversible Safe Card Release
 When clearing camera cards for re-use:
-- **Shift-Left Hardware Lock:** Win32 low-level formatting (`Clear-CameraCard`) is locked to physical `Removable` media; internal SSDs and network shares are rejected even with `-Force`.
-- **1-Click Undo Recovery:** `Undo-CardClear` instantly reverses the card clear if the loader realized the card was pulled early.
+- **Shift-Left Hardware Lock:** Win32 raw header inversion (`Clear-CameraCard`) is locked to physical `Removable` media; internal SSDs and network shares are rejected even with `-Force`.
+- **1-Click Undo Recovery (`XOR 0xFF` Header Inversion):** Reversibly inverts the first `2 MiB` partition/boot header (saving an emergency `.bin` header backup) so the camera prompts to format, while `Undo-CardClear` can restore the partition table before the card is overwritten in-camera.
 
 ### Stage 8: Long-Term Bitrot Scrubbing & Self-Healing Mirror Repair
 Keep archive vaults healthy over months and years:

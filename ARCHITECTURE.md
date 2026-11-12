@@ -1,4 +1,4 @@
-# System Architecture & Mathematical Foundations (`OffloadPro DIT Studio v3.3`)
+# System Architecture & Mathematical Foundations (`OffloadPro DIT Studio v4.4.0`)
 
 This document details the low-level systems engineering, filesystem geometry, statistical modeling, and browser security architecture powering **OffloadPro DIT Studio**.
 
@@ -43,7 +43,7 @@ When running purely offline over `file://`, modern browsers enforce an **opaque 
 
 Standard two-pass copying reads every byte off an SD card during the copy phase and then reads the SD card a second time to compute source checksums—doubling flash thermal stress and USB bus time.
 
-In [`Copy-SingleReadMultiWrite`](./scripts/Invoke-OffloadProEngine.ps1), OffloadPro opens a single `4 MB` (`4,194,304` byte) buffer over the source file (`[System.IO.File]::Open`):
+In [`Copy-SingleReadMultiWrite`](./modules/OffloadPro/Private/Copy-SingleReadMultiWrite.ps1), OffloadPro opens a single `4 MB` (`4,194,304` byte) buffer over the source file (`[System.IO.FileStream]` with `FileOptions.SequentialScan`):
 1. Reads each `4 MB` chunk from the SD card **once** into RAM.
 2. Feeds the chunk into `.NET` `TransformBlock()` (`SHA256`, `MD5`, or `SHA1`).
 3. Writes the same RAM buffer out to Destination #1 (`E:\`) and optional Destination #2 (`F:\`) simultaneously.

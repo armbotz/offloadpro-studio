@@ -98,73 +98,91 @@ function Invoke-OffloadSession {
     $mismatches = 0
     $inlineHashes = @{}
 
-    foreach ($item in $queue) {
-        $targets = @(foreach ($r in $dstRoots) {
-            if ($MacMode -eq 'forensic_split' -and $item.IsForensic) {
-                Join-Path "${r}_forensics" $item.RelPath
-            } else {
-                Join-Path $r $item.RelPath
-            }
-        })
+    Set-ExecutionAwakeLock -Enable $true
+    try {
+        foreach ($item in $queue) {
+            $targets = @(foreach ($r in $dstRoots) {
+                if ($MacMode -eq 'forensic_split' -and $item.IsForensic) {
+                    Join-Path "${r}_forensics" $item.RelPath
+                } else {
+                    Join-Path $r $item.RelPath
+                }
+            })
 
-        # OS Professor Crash-Resumable Checkpoint Check: If all target files already exist with matching byte size & mtime, verify in place
-        $allTargetsIntact = $true
-        foreach ($tf in $targets) {
-            if (-not (Test-Path -LiteralPath $tf)) {
-                $allTargetsIntact = $false
-                break
+            # OS Professor Crash-Resumable Checkpoint Check: If all target files already exist with matching byte size & mtime, verify in place
+            $allTargetsIntact = $true
+            foreach ($tf in $targets) {
+                if (-not (Test-Path -LiteralPath $tf)) {
+                    $allTargetsIntact = $false
+                    break
+                }
+                $tfi = Get-Item -LiteralPath $tf -Force
+                if ($tfi.Length -ne $item.File.Length -or $tfi.LastWriteTimeUtc -ne $item.File.LastWriteTimeUtc) {
+                    $allTargetsIntact = $false
+                    break
+                }
             }
-            $tfi = Get-Item -LiteralPath $tf -Force
-            if ($tfi.Length -ne $item.File.Length -or $tfi.LastWriteTimeUtc -ne $item.File.LastWriteTimeUtc) {
-                $allTargetsIntact = $false
-                break
-            }
-        }
 
-        if ($allTargetsIntact -and (-not $AllowOverwrite)) {
-            $existingHash = Get-FileChecksumFull -FilePath $targets[0] -HashAlgorithm $Algorithm
+            if ($allTargetsIntact -and (-not $AllowOverwrite)) {
+                $existingHash = Get-FileChecksumFull -FilePath $targets[0] -HashAlgorithm $Algorithm
+                if (-not $item.IsForensic) {
+                    $inlineHashes[$item.RelPath] = $existingHash
+                }
+                $resumedSkipped++
+                $copied++
+                continue
+            }
+
+            $srcHash = Copy-SingleReadMultiWrite -SourceFile $item.File.FullName -TargetFiles $targets -HashAlgorithm $Algorithm
             if (-not $item.IsForensic) {
-                $inlineHashes[$item.RelPath] = $existingHash
+                $inlineHashes[$item.RelPath] = $srcHash
             }
-            $resumedSkipped++
+            foreach ($tf in $targets) {
+                [System.IO.File]::SetCreationTimeUtc($tf, $item.File.CreationTimeUtc)
+                [System.IO.File]::SetLastWriteTimeUtc($tf, $item.File.LastWriteTimeUtc)
+                if ($VerifyLevel1) {
+                    $dstHash = Get-FileChecksumFull -FilePath $tf -HashAlgorithm $Algorithm
+                    if ($dstHash -ne $srcHash) { $mismatches++ }
+                }
+            }
             $copied++
-            continue
-        }
-
-        $srcHash = Copy-SingleReadMultiWrite -SourceFile $item.File.FullName -TargetFiles $targets -HashAlgorithm $Algorithm
-        if (-not $item.IsForensic) {
-            $inlineHashes[$item.RelPath] = $srcHash
-        }
-        foreach ($tf in $targets) {
-            [System.IO.File]::SetCreationTimeUtc($tf, $item.File.CreationTimeUtc)
-            [System.IO.File]::SetLastWriteTimeUtc($tf, $item.File.LastWriteTimeUtc)
-            if ($VerifyLevel1) {
-                $dstHash = Get-FileChecksumFull -FilePath $tf -HashAlgorithm $Algorithm
-                if ($dstHash -ne $srcHash) { $mismatches++ }
+            if ($copied % 500 -eq 0 -or $copied -eq $queue.Count) {
+                $pct = [math]::Round(($copied / $queue.Count) * 100, 1)
+                $rate = if ($sw.Elapsed.TotalSeconds -gt 0) { [math]::Round($copied / $sw.Elapsed.TotalSeconds, 1) } else { 0 }
+                Write-Host "  -> [PROGRESS] $copied / $($queue.Count) files ($pct%) | $rate files/sec" -ForegroundColor Cyan
             }
         }
-        $copied++
-    }
-    $sw.Stop()
-    $traffic = if ($mismatches -gt 0) { 'RED_ERRORS' } elseif ($dstRoots.Count -ge 2) { 'GREEN_321_VERIFIED' } else { 'AMBER_SINGLE_COPY' }
-    Write-Host "[OFFLOAD COMPLETE] $copied/$($queue.Count) files (Resumed: $resumedSkipped) | Level 1 Hash Mismatches: $mismatches | Status: $traffic" -ForegroundColor Green
+        $sw.Stop()
+        $traffic = if ($mismatches -gt 0) { 'RED_ERRORS' } elseif ($dstRoots.Count -ge 2) { 'GREEN_321_VERIFIED' } else { 'AMBER_SINGLE_COPY' }
+        Write-Host "[OFFLOAD COMPLETE] $copied/$($queue.Count) files (Resumed: $resumedSkipped) | Level 1 Hash Mismatches: $mismatches | Status: $traffic" -ForegroundColor Green
 
-    foreach ($r in $dstRoots) {
-        New-MhlAndCertificate -ArchivePath $r -HashAlgorithm $Algorithm -PrecomputedHashes $inlineHashes -MaxThreads $Threads
-    }
-
-    if ($mismatches -gt 0) {
-        Write-OffloadEventLog -EventId 4001 -EntryType 'Error' -Message "OffloadPro Level 1 Hash Mismatch count: $mismatches"
-        $script:ExitCodeToReturn = 1
-    } elseif ($VerifyLevel2 -or $VerifyLevel3) {
-        $auditScript = Join-Path $RepoRoot 'scripts\Invoke-3LevelAudit.ps1'
-        if (Test-Path -LiteralPath $auditScript) {
-            & $auditScript -SourceRoot $safeSrc -DestinationRoot $safeDst1 -SkipLevel1Hash -SkipLevel3DeepDecode:(-not $VerifyLevel3) -Threads $Threads
-            if ($LASTEXITCODE -ne 0) { $script:ExitCodeToReturn = $LASTEXITCODE }
+        $streamAuditStatus = 'Skipped (L1 Hash Only)'
+        if ($mismatches -gt 0) {
+            Write-OffloadEventLog -EventId 4001 -EntryType 'Error' -Message "OffloadPro Level 1 Hash Mismatch count: $mismatches"
+            $script:ExitCodeToReturn = 1
+            $streamAuditStatus = 'Blocked (L1 Mismatch)'
+        } elseif ($VerifyLevel2 -or $VerifyLevel3) {
+            $auditScript = Join-Path $RepoRoot 'scripts\Invoke-3LevelAudit.ps1'
+            if (Test-Path -LiteralPath $auditScript) {
+                & $auditScript -SourceRoot $safeSrc -DestinationRoot $safeDst1 -SkipLevel1Hash -SkipLevel3DeepDecode:(-not $VerifyLevel3) -Threads $Threads
+                if ($LASTEXITCODE -ne 0) {
+                    $script:ExitCodeToReturn = $LASTEXITCODE
+                    $streamAuditStatus = 'Audit Warning Detected'
+                } else {
+                    $streamAuditStatus = if ($VerifyLevel3) { '100% Decoded (L2+L3)' } else { 'L2 Container Verified' }
+                }
+            }
         }
-    }
-    if ($script:ExitCodeToReturn -eq 0) {
-        Write-OffloadEventLog -EventId 1000 -EntryType 'Information' -Message "OffloadPro Offload Completed ($traffic): $copied files verified."
+
+        foreach ($r in $dstRoots) {
+            New-MhlAndCertificate -ArchivePath $r -HashAlgorithm $Algorithm -PrecomputedHashes $inlineHashes -MaxThreads $Threads -HashMismatches $mismatches -StreamAuditStatus $streamAuditStatus
+        }
+
+        if ($script:ExitCodeToReturn -eq 0) {
+            Write-OffloadEventLog -EventId 1000 -EntryType 'Information' -Message "OffloadPro Offload Completed ($traffic): $copied files verified."
+        }
+    } finally {
+        Set-ExecutionAwakeLock -Enable $false
     }
 
     $resObj = [PSCustomObject]@{

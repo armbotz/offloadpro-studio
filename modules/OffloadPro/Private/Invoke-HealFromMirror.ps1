@@ -13,7 +13,19 @@ function Invoke-HealFromMirror {
     } else {
         $folderName = Split-Path -Leaf $safeArchive
         $parentDir  = Split-Path -Parent $safeArchive
-        Join-Path $parentDir "$folderName.mhl"
+        $cand1 = Join-Path $parentDir "$folderName.mhl"
+        $cand2 = Join-Path $safeArchive "$folderName.mhl"
+        $ascmhlDir = Join-Path $safeArchive 'ascmhl'
+        if (Test-Path -LiteralPath $cand1) {
+            $cand1
+        } elseif (Test-Path -LiteralPath $cand2) {
+            $cand2
+        } elseif (Test-Path -LiteralPath $ascmhlDir) {
+            $ascGen = @(Get-ChildItem -LiteralPath $ascmhlDir -Filter '*.mhl' -File -ErrorAction SilentlyContinue | Sort-Object Name -Descending)
+            if ($ascGen.Count -gt 0) { $ascGen[0].FullName } else { $cand1 }
+        } else {
+            $cand1
+        }
     }
 
     if (-not (Test-Path -LiteralPath $resolvedMhl)) {
@@ -21,9 +33,15 @@ function Invoke-HealFromMirror {
     }
 
     [xml]$xmlDoc = Get-Content -LiteralPath $resolvedMhl -Raw -Encoding UTF8
-    $nodes = @($xmlDoc.hashlist.hash)
+    $nodes = if ($null -ne $xmlDoc.hashlist) {
+        @($xmlDoc.hashlist.hash)
+    } elseif ($null -ne $xmlDoc.ascmhl -and $null -ne $xmlDoc.ascmhl.hashes) {
+        @($xmlDoc.ascmhl.hashes.hash)
+    } else {
+        @()
+    }
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "OffloadPro v4.1 Self-Healing Vault Repair -- Entries: $($nodes.Count)" -ForegroundColor Cyan
+    Write-Host "OffloadPro v4.4 Self-Healing Vault Repair -- Entries: $($nodes.Count)" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Cyan
 
     $healthyCount = 0
@@ -32,7 +50,7 @@ function Invoke-HealFromMirror {
     $unhealableCount = 0
 
     foreach ($n in $nodes) {
-        $relFile = [string]$n.file
+        $relFile = if ($n.file) { [string]$n.file } else { ([string]$n.path).Replace('/', '\') }
         $expSize = [int64]$n.size
         $algo = 'SHA256'; $expHash = ''
         if ($n.sha256) { $algo = 'SHA256'; $expHash = ([string]$n.sha256).ToUpperInvariant() }

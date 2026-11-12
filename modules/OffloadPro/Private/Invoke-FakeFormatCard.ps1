@@ -50,10 +50,10 @@ function Invoke-FakeFormatCard {
     }
 
     $backupHeaderPath = if (-not [string]::IsNullOrWhiteSpace($VerifiedBackupPath)) {
-        $baseNameClean = if ($isFileTarget) { [System.IO.Path]::GetFileNameWithoutExtension($safeCard) } else { $cardRoot.Replace(':', '') }
+        $baseNameClean = if ($isFileTarget) { [System.IO.Path]::GetFileNameWithoutExtension($safeCard) } else { $cardRoot.TrimEnd('\').Replace(':', '') }
         Join-Path $VerifiedBackupPath "${baseNameClean}_emergency_header_backup.bin"
     } else {
-        $baseNameClean = if ($isFileTarget) { [System.IO.Path]::GetFileNameWithoutExtension($safeCard) } else { $cardRoot.Replace(':', '') }
+        $baseNameClean = if ($isFileTarget) { [System.IO.Path]::GetFileNameWithoutExtension($safeCard) } else { $cardRoot.TrimEnd('\').Replace(':', '') }
         Join-Path ([System.IO.Path]::GetTempPath()) "OffloadPro_HeaderBackup_${baseNameClean}.bin"
     }
 
@@ -104,7 +104,7 @@ function Invoke-FakeFormatCard {
     }
 
     Write-Host "[FAKE-FORMAT COMPLETE] Inverted $bytesRead bytes (2 MiB header). Card will prompt for clean in-camera format on next insert." -ForegroundColor Green
-    Write-Host "Emergency Header Backup : $backupHeaderPath" -ForegroundColor DarkGray
+    Write-Host "Emergency Header Backup : $(Split-Path -Leaf $backupHeaderPath) (Saved)" -ForegroundColor DarkGray
 
     return [PSCustomObject]@{
         target           = $targetDeviceOrFile
